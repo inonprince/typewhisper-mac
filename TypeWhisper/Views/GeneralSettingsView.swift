@@ -13,7 +13,6 @@ struct GeneralSettingsView: View {
     @State private var showMenuBarIconHiddenAlert = false
     @AppStorage(UserDefaultsKeys.showMenuBarIcon) private var showMenuBarIcon = true
     @ObservedObject private var pluginManager = PluginManager.shared
-    @ObservedObject private var modelManager = ServiceContainer.shared.modelManagerService
     @ObservedObject private var settings = SettingsViewModel.shared
 
     var body: some View {
@@ -44,44 +43,6 @@ struct GeneralSettingsView: View {
                 }
 
                 Text(String(localized: "Uses Apple Translate (on-device)"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(String(localized: "Default Engine")) {
-                let engines = pluginManager.transcriptionEngines
-                if engines.isEmpty {
-                    Text(String(localized: "No transcription engines installed. Install engines via Integrations."))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker(String(localized: "Engine"), selection: Binding(
-                        get: { modelManager.selectedProviderId },
-                        set: { if let id = $0 { modelManager.selectProvider(id) } }
-                    )) {
-                        Text(String(localized: "None")).tag(nil as String?)
-                        Divider()
-                        ForEach(engines, id: \.providerId) { engine in
-                            Text(engine.providerDisplayName).tag(engine.providerId as String?)
-                        }
-                    }
-
-                    if let providerId = modelManager.selectedProviderId,
-                       let engine = pluginManager.transcriptionEngine(for: providerId) {
-                        let models = engine.transcriptionModels
-                        if models.count > 1 {
-                            Picker(String(localized: "Model"), selection: Binding(
-                                get: { engine.selectedModelId },
-                                set: { if let id = $0 { modelManager.selectModel(providerId, modelId: id) } }
-                            )) {
-                                ForEach(models, id: \.id) { model in
-                                    Text(model.displayName).tag(model.id as String?)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Text(String(localized: "The engine used for transcription unless overridden by a profile."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

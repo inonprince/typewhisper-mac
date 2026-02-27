@@ -80,6 +80,7 @@ struct RecordingSettingsView: View {
     @ObservedObject private var dictation = DictationViewModel.shared
     @ObservedObject private var audioDevice = ServiceContainer.shared.audioDeviceService
     @ObservedObject private var pluginManager = PluginManager.shared
+    @ObservedObject private var modelManager = ServiceContainer.shared.modelManagerService
     @State private var selectedProvider: String?
 
     private var needsPermissions: Bool {
@@ -113,7 +114,22 @@ struct RecordingSettingsView: View {
                     }
                     .onChange(of: selectedProvider) { _, newValue in
                         if let newValue {
-                            ServiceContainer.shared.modelManagerService.selectProvider(newValue)
+                            modelManager.selectProvider(newValue)
+                        }
+                    }
+
+                    if let providerId = selectedProvider,
+                       let engine = pluginManager.transcriptionEngine(for: providerId) {
+                        let models = engine.transcriptionModels
+                        if models.count > 1 {
+                            Picker(String(localized: "Model"), selection: Binding(
+                                get: { engine.selectedModelId },
+                                set: { if let id = $0 { modelManager.selectModel(providerId, modelId: id) } }
+                            )) {
+                                ForEach(models, id: \.id) { model in
+                                    Text(model.displayName).tag(model.id as String?)
+                                }
+                            }
                         }
                     }
                 }
@@ -337,7 +353,7 @@ struct RecordingSettingsView: View {
         .padding()
         .frame(minWidth: 500, minHeight: 300)
         .onAppear {
-            selectedProvider = ServiceContainer.shared.modelManagerService.selectedProviderId
+            selectedProvider = modelManager.selectedProviderId
         }
     }
 
