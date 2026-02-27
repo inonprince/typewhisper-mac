@@ -389,6 +389,7 @@ private struct WhisperKitSettingsView: View {
     private let bundle = Bundle(for: WhisperKitPlugin.self)
     @State private var modelState: WhisperModelState = .notLoaded
     @State private var downloadProgress: Double = 0
+    @State private var pollTimer: Timer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -424,9 +425,33 @@ private struct WhisperKitSettingsView: View {
         }
         .padding()
         .onAppear {
-            modelState = plugin.modelState
-            downloadProgress = plugin.downloadProgress
+            syncState()
         }
+        .onDisappear {
+            stopPolling()
+        }
+    }
+
+    private func syncState() {
+        modelState = plugin.modelState
+        downloadProgress = plugin.downloadProgress
+    }
+
+    private func startPolling() {
+        stopPolling()
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            DispatchQueue.main.async {
+                syncState()
+                if case .ready = plugin.modelState { stopPolling() }
+                else if case .error = plugin.modelState { stopPolling() }
+                else if case .notLoaded = plugin.modelState { stopPolling() }
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTimer?.invalidate()
+        pollTimer = nil
     }
 
     @ViewBuilder
@@ -488,9 +513,13 @@ private struct WhisperKitSettingsView: View {
             }
         } else {
             Button(String(localized: "Download & Load", bundle: bundle)) {
+                modelState = .downloading
+                downloadProgress = 0.05
+                startPolling()
                 Task {
                     await plugin.loadModel(modelDef)
-                    modelState = plugin.modelState
+                    stopPolling()
+                    syncState()
                 }
             }
             .buttonStyle(.borderedProminent)

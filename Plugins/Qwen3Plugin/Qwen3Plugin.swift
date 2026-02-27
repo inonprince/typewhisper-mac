@@ -468,6 +468,7 @@ private struct Qwen3SettingsView: View {
             } else {
                 Button(String(localized: "Download & Load", bundle: bundle)) {
                     selectedModelId = modelDef.id
+                    modelState = .loading
                     Task {
                         try? await plugin.loadModel(modelDef)
                         modelState = plugin.modelState
