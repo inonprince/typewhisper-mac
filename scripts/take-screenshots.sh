@@ -20,7 +20,6 @@ PROCESS_NAME="TypeWhisper"
 TABS=(
     "Home:home"
     "General:general"
-    "Models:models"
     "Recording:recording"
     "File Transcription:file-transcription"
     "History:history"
