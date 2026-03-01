@@ -290,7 +290,7 @@ private struct ProfileEditorSheet: View {
                     }
 
                     // Engine override
-                    Picker(String(localized: "Engine"), selection: $viewModel.editorEngineOverride) {
+                    Picker(String(localized: "Transcription Engine"), selection: $viewModel.editorEngineOverride) {
                         Text(String(localized: "Global Setting")).tag(nil as String?)
                         Divider()
                         ForEach(PluginManager.shared.transcriptionEngines, id: \.providerId) { engine in
@@ -319,6 +319,23 @@ private struct ProfileEditorSheet: View {
                         ForEach(PromptActionsViewModel.shared.promptActions.filter(\.isEnabled)) { action in
                             Label(action.name, systemImage: action.icon).tag(action.id.uuidString as String?)
                         }
+                    }
+
+                    if let promptId = viewModel.editorPromptActionId,
+                       let action = PromptActionsViewModel.shared.promptActions.first(where: { $0.id.uuidString == promptId }),
+                       let providerType = action.providerType, !providerType.isEmpty {
+                        let providerName = PluginManager.shared.llmProvider(for: providerType)?.providerName ?? providerType
+                        let modelName = action.cloudModel ?? ""
+                        HStack(spacing: 4) {
+                            Text("LLM:")
+                                .foregroundStyle(.secondary)
+                            Text(providerName)
+                            if !modelName.isEmpty {
+                                Text("(\(modelName))")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .font(.caption)
                     }
 
                     Text(String(localized: "When a prompt is assigned, dictated text will be processed by the LLM before insertion. This replaces translation."))

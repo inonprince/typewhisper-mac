@@ -1,0 +1,8 @@
+{
+    "id": "com.typewhisper.openai-compatible",
+    "name": "OpenAI Compatible",
+    "version": "1.0.0",
+    "minHostVersion": "0.9.0",
+    "author": "TypeWhisper",
+    "principalClass": "OpenAICompatiblePlugin"
+}

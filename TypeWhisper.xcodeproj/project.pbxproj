@@ -140,6 +140,10 @@
 		AA00000000000000000182 /* StreamingHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000000000000000172 /* StreamingHandler.swift */; };
 		AA00000000000000000183 /* PromptPaletteHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000000000000000173 /* PromptPaletteHandler.swift */; };
 		AA00000000000000000184 /* DictationSettingsHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000000000000000174 /* DictationSettingsHandler.swift */; };
+		AA00000000000000000185 /* OpenAICompatiblePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000000000000000176 /* OpenAICompatiblePlugin.swift */; };
+		AA00000000000000000186 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = BB00000000000000000177 /* manifest.json */; };
+		AA00000000000000000187 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = BB00000000000000000178 /* Localizable.xcstrings */; };
+		AA00000000000000000188 /* TypeWhisperPluginSDK in Frameworks */ = {isa = PBXBuildFile; productRef = PP00000000000000000019 /* TypeWhisperPluginSDK */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -275,6 +279,10 @@
 		BB00000000000000000172 /* StreamingHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingHandler.swift; sourceTree = "<group>"; };
 		BB00000000000000000173 /* PromptPaletteHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPaletteHandler.swift; sourceTree = "<group>"; };
 		BB00000000000000000174 /* DictationSettingsHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationSettingsHandler.swift; sourceTree = "<group>"; };
+		BB00000000000000000175 /* OpenAICompatiblePlugin.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenAICompatiblePlugin.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB00000000000000000176 /* OpenAICompatiblePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatiblePlugin.swift; sourceTree = "<group>"; };
+		BB00000000000000000177 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = manifest.json; sourceTree = "<group>"; };
+		BB00000000000000000178 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -367,6 +375,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA00000000000000000171 /* TypeWhisperPluginSDK in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FF00000000000000000075 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA00000000000000000188 /* TypeWhisperPluginSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -501,6 +517,7 @@
 				CC00000000000000000021 /* WhisperKitPlugin */,
 				CC00000000000000000022 /* ParakeetPlugin */,
 				CC00000000000000000023 /* SpeechAnalyzerPlugin */,
+				CC00000000000000000024 /* OpenAICompatiblePlugin */,
 				CC00000000000000000090 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -706,6 +723,7 @@
 				BB00000000000000000153 /* WhisperKitPlugin.bundle */,
 				BB00000000000000000156 /* ParakeetPlugin.bundle */,
 				BB00000000000000000159 /* SpeechAnalyzerPlugin.bundle */,
+				BB00000000000000000175 /* OpenAICompatiblePlugin.bundle */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -807,6 +825,17 @@
 			);
 			name = SpeechAnalyzerPlugin;
 			path = Plugins/SpeechAnalyzerPlugin;
+			sourceTree = "<group>";
+		};
+		CC00000000000000000024 /* OpenAICompatiblePlugin */ = {
+			isa = PBXGroup;
+			children = (
+				BB00000000000000000176 /* OpenAICompatiblePlugin.swift */,
+				BB00000000000000000177 /* manifest.json */,
+				BB00000000000000000178 /* Localizable.xcstrings */,
+			);
+			name = OpenAICompatiblePlugin;
+			path = Plugins/OpenAICompatiblePlugin;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1058,6 +1087,26 @@
 			productReference = BB00000000000000000159 /* SpeechAnalyzerPlugin.bundle */;
 			productType = "com.apple.product-type.bundle";
 		};
+		DD00000000000000000013 /* OpenAICompatiblePlugin */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FF00000000000000000077 /* Build configuration list for PBXNativeTarget "OpenAICompatiblePlugin" */;
+			buildPhases = (
+				FF00000000000000000074 /* Sources */,
+				FF00000000000000000075 /* Frameworks */,
+				FF00000000000000000076 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OpenAICompatiblePlugin;
+			packageProductDependencies = (
+				PP00000000000000000019 /* TypeWhisperPluginSDK */,
+			);
+			productName = OpenAICompatiblePlugin;
+			productReference = BB00000000000000000175 /* OpenAICompatiblePlugin.bundle */;
+			productType = "com.apple.product-type.bundle";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1108,6 +1157,7 @@
 				DD00000000000000000010 /* WhisperKitPlugin */,
 				DD00000000000000000011 /* ParakeetPlugin */,
 				DD00000000000000000012 /* SpeechAnalyzerPlugin */,
+				DD00000000000000000013 /* OpenAICompatiblePlugin */,
 			);
 		};
 /* End PBXProject section */
@@ -1204,6 +1254,15 @@
 			files = (
 				AA00000000000000000170 /* manifest.json in Resources */,
 				AA00000000000000000180 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FF00000000000000000076 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA00000000000000000186 /* manifest.json in Resources */,
+				AA00000000000000000187 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1376,6 +1435,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA00000000000000000169 /* SpeechAnalyzerPlugin.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FF00000000000000000074 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA00000000000000000185 /* OpenAICompatiblePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2638,6 +2705,98 @@
 			};
 			name = AppStoreRelease;
 		};
+		XX00000000000000000053 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 2D8ALY3LCL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenAI Compatible";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = OpenAICompatiblePlugin;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.typewhisper.openai-compatible";
+				PRODUCT_NAME = OpenAICompatiblePlugin;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = Debug;
+		};
+		XX00000000000000000054 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 2D8ALY3LCL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenAI Compatible";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = OpenAICompatiblePlugin;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.typewhisper.openai-compatible";
+				PRODUCT_NAME = OpenAICompatiblePlugin;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = Release;
+		};
+		XX00000000000000000055 /* AppStoreDebug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 2D8ALY3LCL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenAI Compatible";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = OpenAICompatiblePlugin;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.typewhisper.openai-compatible";
+				PRODUCT_NAME = OpenAICompatiblePlugin;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = AppStoreDebug;
+		};
+		XX00000000000000000056 /* AppStoreRelease */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 2D8ALY3LCL;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "OpenAI Compatible";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = OpenAICompatiblePlugin;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.typewhisper.openai-compatible";
+				PRODUCT_NAME = OpenAICompatiblePlugin;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = AppStoreRelease;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2773,6 +2932,17 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		FF00000000000000000077 /* Build configuration list for PBXNativeTarget "OpenAICompatiblePlugin" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				XX00000000000000000053 /* Debug */,
+				XX00000000000000000054 /* Release */,
+				XX00000000000000000055 /* AppStoreDebug */,
+				XX00000000000000000056 /* AppStoreRelease */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -2880,6 +3050,10 @@
 			productName = FluidAudio;
 		};
 		PP00000000000000000018 /* TypeWhisperPluginSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = TypeWhisperPluginSDK;
+		};
+		PP00000000000000000019 /* TypeWhisperPluginSDK */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = TypeWhisperPluginSDK;
 		};
