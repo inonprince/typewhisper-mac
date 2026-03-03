@@ -106,8 +106,11 @@ final class WhisperKitPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Se
 
         let text = results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         let detectedLanguage = results.first?.language
+        let segments = results.flatMap { $0.segments }.map {
+            PluginTranscriptionSegment(text: $0.text, start: Double($0.start), end: Double($0.end))
+        }
 
-        return PluginTranscriptionResult(text: text, detectedLanguage: detectedLanguage)
+        return PluginTranscriptionResult(text: text, detectedLanguage: detectedLanguage, segments: segments)
     }
 
     func transcribe(
@@ -145,8 +148,11 @@ final class WhisperKitPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Se
 
         let text = results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         let detectedLanguage = results.first?.language
+        let segments = results.flatMap { $0.segments }.map {
+            PluginTranscriptionSegment(text: $0.text, start: Double($0.start), end: Double($0.end))
+        }
 
-        return PluginTranscriptionResult(text: text, detectedLanguage: detectedLanguage)
+        return PluginTranscriptionResult(text: text, detectedLanguage: detectedLanguage, segments: segments)
     }
 
     // MARK: - Model Management

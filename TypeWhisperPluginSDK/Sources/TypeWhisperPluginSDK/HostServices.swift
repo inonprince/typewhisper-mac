@@ -206,15 +206,25 @@ public struct PluginOpenAITranscriptionHelper: Sendable {
         }
     }
 
+    private struct APISegment: Decodable {
+        let start: Double
+        let end: Double
+        let text: String
+    }
+
     private struct APIResponse: Decodable {
         let text: String
         let language: String?
+        let segments: [APISegment]?
     }
 
     private func parseResponse(_ data: Data) throws -> PluginTranscriptionResult {
         do {
             let response = try JSONDecoder().decode(APIResponse.self, from: data)
-            return PluginTranscriptionResult(text: response.text, detectedLanguage: response.language)
+            let segments = (response.segments ?? []).map {
+                PluginTranscriptionSegment(text: $0.text, start: $0.start, end: $0.end)
+            }
+            return PluginTranscriptionResult(text: response.text, detectedLanguage: response.language, segments: segments)
         } catch {
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let text = json["text"] as? String {

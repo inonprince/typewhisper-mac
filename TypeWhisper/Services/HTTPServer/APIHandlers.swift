@@ -46,6 +46,7 @@ final class APIHandlers: @unchecked Sendable {
         var language: String?
         var task: TranscriptionTask = .transcribe
         var targetLanguage: String?
+        var responseFormat = "json"
 
         let contentType = request.headers["content-type"] ?? ""
 
@@ -82,6 +83,12 @@ final class APIHandlers: @unchecked Sendable {
                !val.isEmpty {
                 targetLanguage = val
             }
+
+            if let formatPart = parts.first(where: { $0.name == "response_format" }),
+               let val = String(data: formatPart.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !val.isEmpty {
+                responseFormat = val
+            }
         } else if !request.body.isEmpty {
             audioData = request.body
             fileExtension = extensionFromMIME(contentType)
@@ -90,6 +97,9 @@ final class APIHandlers: @unchecked Sendable {
                 task = parsed
             }
             targetLanguage = request.headers["x-target-language"]
+            if let format = request.headers["x-response-format"], !format.isEmpty {
+                responseFormat = format
+            }
         } else {
             return .error(status: 400, message: "No audio data provided")
         }
@@ -136,25 +146,57 @@ final class APIHandlers: @unchecked Sendable {
                 }
             }
 
-            struct TranscribeResponse: Encodable {
-                let text: String
-                let language: String?
-                let duration: Double
-                let processing_time: Double
-                let engine: String
-                let model: String?
-            }
-
             let modelId = await modelManager.selectedModelId
-            let response = TranscribeResponse(
-                text: finalText,
-                language: result.detectedLanguage,
-                duration: result.duration,
-                processing_time: result.processingTime,
-                engine: result.engineUsed,
-                model: modelId
-            )
-            return .json(response)
+
+            if responseFormat == "verbose_json" {
+                struct SegmentEntry: Encodable {
+                    let start: Double
+                    let end: Double
+                    let text: String
+                }
+
+                struct VerboseResponse: Encodable {
+                    let text: String
+                    let language: String?
+                    let duration: Double
+                    let processing_time: Double
+                    let engine: String
+                    let model: String?
+                    let segments: [SegmentEntry]
+                }
+
+                let segments = result.segments.map {
+                    SegmentEntry(start: $0.start, end: $0.end, text: $0.text)
+                }
+
+                return .json(VerboseResponse(
+                    text: finalText,
+                    language: result.detectedLanguage,
+                    duration: result.duration,
+                    processing_time: result.processingTime,
+                    engine: result.engineUsed,
+                    model: modelId,
+                    segments: segments
+                ))
+            } else {
+                struct TranscribeResponse: Encodable {
+                    let text: String
+                    let language: String?
+                    let duration: Double
+                    let processing_time: Double
+                    let engine: String
+                    let model: String?
+                }
+
+                return .json(TranscribeResponse(
+                    text: finalText,
+                    language: result.detectedLanguage,
+                    duration: result.duration,
+                    processing_time: result.processingTime,
+                    engine: result.engineUsed,
+                    model: modelId
+                ))
+            }
         } catch {
             return .error(status: 500, message: "Transcription failed: \(error.localizedDescription)")
         }

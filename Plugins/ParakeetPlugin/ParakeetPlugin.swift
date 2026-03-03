@@ -79,7 +79,90 @@ final class ParakeetPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Send
 
         let result = try await asrManager.transcribe(audio.samples, source: .system)
 
-        return PluginTranscriptionResult(text: result.text, detectedLanguage: nil)
+        let segments: [PluginTranscriptionSegment]
+        if let tokenTimings = result.tokenTimings, !tokenTimings.isEmpty {
+            segments = Self.groupTokensIntoSegments(tokenTimings)
+        } else {
+            segments = []
+        }
+
+        return PluginTranscriptionResult(text: result.text, detectedLanguage: nil, segments: segments)
+    }
+
+    // MARK: - Token-to-Segment Grouping
+
+    private static func groupTokensIntoSegments(_ tokenTimings: [TokenTiming]) -> [PluginTranscriptionSegment] {
+        // Phase 1: Group sub-word tokens into words
+        struct WordTiming {
+            let word: String
+            let start: Double
+            let end: Double
+        }
+
+        var words: [WordTiming] = []
+        var currentWord = ""
+        var wordStart: Double = 0
+        var wordEnd: Double = 0
+
+        for timing in tokenTimings {
+            let token = timing.token
+            if token.isEmpty || token == "<blank>" || token == "<pad>" { continue }
+
+            let startsNewWord = isWordBoundary(token) || currentWord.isEmpty
+
+            if startsNewWord && !currentWord.isEmpty {
+                let trimmed = currentWord.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty {
+                    words.append(WordTiming(word: trimmed, start: wordStart, end: wordEnd))
+                }
+                currentWord = ""
+            }
+
+            if startsNewWord {
+                currentWord = stripWordBoundaryPrefix(token)
+                wordStart = timing.startTime
+            } else {
+                currentWord += token
+            }
+            wordEnd = timing.endTime
+        }
+
+        let lastTrimmed = currentWord.trimmingCharacters(in: .whitespaces)
+        if !lastTrimmed.isEmpty {
+            words.append(WordTiming(word: lastTrimmed, start: wordStart, end: wordEnd))
+        }
+
+        guard !words.isEmpty else { return [] }
+
+        // Phase 2: Group words into sentence segments (split at sentence-ending punctuation or pause > 0.8s)
+        let sentenceEndings: Set<Character> = [".", "?", "!"]
+        let pauseThreshold: Double = 0.8
+
+        var segments: [PluginTranscriptionSegment] = []
+        var segmentWords: [String] = []
+        var segmentStart: Double = words[0].start
+        var segmentEnd: Double = words[0].end
+
+        for i in 0..<words.count {
+            let word = words[i]
+            segmentWords.append(word.word)
+            segmentEnd = word.end
+
+            let isSentenceEnd = word.word.last.map { sentenceEndings.contains($0) } ?? false
+            let hasLongPause = i + 1 < words.count && (words[i + 1].start - word.end) > pauseThreshold
+            let isLast = i == words.count - 1
+
+            if isSentenceEnd || hasLongPause || isLast {
+                let text = segmentWords.joined(separator: " ")
+                segments.append(PluginTranscriptionSegment(text: text, start: segmentStart, end: segmentEnd))
+                segmentWords = []
+                if i + 1 < words.count {
+                    segmentStart = words[i + 1].start
+                }
+            }
+        }
+
+        return segments
     }
 
     // MARK: - Model Management

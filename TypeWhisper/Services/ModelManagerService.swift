@@ -155,7 +155,7 @@ final class ModelManagerService: ObservableObject {
             duration: audioDuration,
             processingTime: processingTime,
             engineUsed: providerId,
-            segments: []
+            segments: result.segments.map { TranscriptionSegment(text: $0.text, start: $0.start, end: $0.end) }
         )
     }
 
@@ -215,7 +215,7 @@ final class ModelManagerService: ObservableObject {
             duration: audioDuration,
             processingTime: processingTime,
             engineUsed: providerId,
-            segments: []
+            segments: result.segments.map { TranscriptionSegment(text: $0.text, start: $0.start, end: $0.end) }
         )
     }
 }

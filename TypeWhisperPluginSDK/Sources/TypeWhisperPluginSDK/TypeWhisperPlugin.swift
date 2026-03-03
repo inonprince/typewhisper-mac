@@ -76,13 +76,27 @@ public struct AudioData: Sendable {
     }
 }
 
+public struct PluginTranscriptionSegment: Sendable {
+    public let text: String
+    public let start: Double
+    public let end: Double
+
+    public init(text: String, start: Double, end: Double) {
+        self.text = text
+        self.start = start
+        self.end = end
+    }
+}
+
 public struct PluginTranscriptionResult: Sendable {
     public let text: String
     public let detectedLanguage: String?
+    public let segments: [PluginTranscriptionSegment]
 
-    public init(text: String, detectedLanguage: String? = nil) {
+    public init(text: String, detectedLanguage: String? = nil, segments: [PluginTranscriptionSegment] = []) {
         self.text = text
         self.detectedLanguage = detectedLanguage
+        self.segments = segments
     }
 }
 
