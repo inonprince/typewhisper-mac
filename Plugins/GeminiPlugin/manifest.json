@@ -3,7 +3,7 @@
     "name": "Gemini",
     "version": "1.0.4",
     "minHostVersion": "0.9.0",
-    "minOSVersion": "15.0",
+    "minOSVersion": "14.0",
     "author": "TypeWhisper",
     "principalClass": "GeminiPlugin"
 }
