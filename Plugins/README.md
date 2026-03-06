@@ -43,6 +43,7 @@ Plugins can subscribe to events without modifying the transcription pipeline:
     "name": "My Plugin",
     "version": "1.0.0",
     "minHostVersion": "0.9.0",
+    "minOSVersion": "15.0",
     "author": "Your Name",
     "principalClass": "MyPluginClassName"
 }
@@ -56,7 +57,9 @@ Each plugin receives a `HostServices` object providing:
 - **UserDefaults** (plugin-scoped): `userDefault(forKey:)`, `setUserDefault(_:forKey:)`
 - **Data directory**: `pluginDataDirectory` - persistent storage at `~/Library/Application Support/TypeWhisper/PluginData/<pluginId>/`
 - **App context**: `activeAppBundleId`, `activeAppName`
+- **Profiles**: `availableProfileNames` - list of user-defined profile names
 - **Event Bus**: `eventBus` for subscribing to events
+- **Capabilities**: `notifyCapabilitiesChanged()` - notify the host when plugin state changes (e.g. model loaded/unloaded)
 
 ## Example
 

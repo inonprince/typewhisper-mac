@@ -1,19 +1,20 @@
 import SwiftUI
 
 enum SettingsTab: Hashable {
-    case home, general, models, recording
+    case home, general, recording
     case fileTranscription, history, dictionary, snippets, profiles, prompts, integrations, advanced
 }
 
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .home
     @ObservedObject private var fileTranscription = FileTranscriptionViewModel.shared
+    @ObservedObject private var registryService = PluginRegistryService.shared
 
     var body: some View {
         Group {
             if #available(macOS 15, *) {
                 TabView(selection: $selectedTab) {
-                    SettingsMainTabs()
+                    SettingsMainTabs(pluginUpdatesBadge: registryService.availableUpdatesCount)
                 }
                 .tabViewStyle(.sidebarAdaptable)
             } else {
@@ -24,9 +25,6 @@ struct SettingsView: View {
                     GeneralSettingsView()
                         .tabItem { Label(String(localized: "General"), systemImage: "gear") }
                         .tag(SettingsTab.general)
-                    ModelManagerView()
-                        .tabItem { Label(String(localized: "Models"), systemImage: "cpu") }
-                        .tag(SettingsTab.models)
                     RecordingSettingsView()
                         .tabItem { Label(String(localized: "Recording"), systemImage: "mic.fill") }
                         .tag(SettingsTab.recording)
@@ -57,7 +55,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .frame(minWidth: 700, idealWidth: 750, minHeight: 550, idealHeight: 600)
+        .frame(minWidth: 950, idealWidth: 1050, minHeight: 550, idealHeight: 600)
         .onAppear { navigateToFileTranscriptionIfNeeded() }
         .onChange(of: fileTranscription.showFilePickerFromMenu) { _, _ in
             navigateToFileTranscriptionIfNeeded()
@@ -73,15 +71,13 @@ struct SettingsView: View {
 
 @available(macOS 15, *)
 private struct SettingsMainTabs: TabContent {
+    var pluginUpdatesBadge: Int
     var body: some TabContent<SettingsTab> {
         Tab(String(localized: "Home"), systemImage: "house", value: SettingsTab.home) {
             HomeSettingsView()
         }
         Tab(String(localized: "General"), systemImage: "gear", value: SettingsTab.general) {
             GeneralSettingsView()
-        }
-        Tab(String(localized: "Models"), systemImage: "cpu", value: SettingsTab.models) {
-            ModelManagerView()
         }
         Tab(String(localized: "Recording"), systemImage: "mic.fill", value: SettingsTab.recording) {
             RecordingSettingsView()
@@ -92,12 +88,13 @@ private struct SettingsMainTabs: TabContent {
         Tab(String(localized: "History"), systemImage: "clock.arrow.circlepath", value: SettingsTab.history) {
             HistoryView()
         }
-        SettingsExtraTabs()
+        SettingsExtraTabs(pluginUpdatesBadge: pluginUpdatesBadge)
     }
 }
 
 @available(macOS 15, *)
 private struct SettingsExtraTabs: TabContent {
+    var pluginUpdatesBadge: Int
     var body: some TabContent<SettingsTab> {
         Tab(String(localized: "Dictionary"), systemImage: "book.closed", value: SettingsTab.dictionary) {
             DictionarySettingsView()
@@ -114,6 +111,7 @@ private struct SettingsExtraTabs: TabContent {
         Tab(String(localized: "Integrations"), systemImage: "puzzlepiece.extension", value: SettingsTab.integrations) {
             PluginSettingsView()
         }
+        .badge(self.pluginUpdatesBadge)
         Tab(String(localized: "Advanced"), systemImage: "gearshape.2", value: SettingsTab.advanced) {
             AdvancedSettingsView()
         }
@@ -123,6 +121,9 @@ private struct SettingsExtraTabs: TabContent {
 struct RecordingSettingsView: View {
     @ObservedObject private var dictation = DictationViewModel.shared
     @ObservedObject private var audioDevice = ServiceContainer.shared.audioDeviceService
+    @ObservedObject private var pluginManager = PluginManager.shared
+    @ObservedObject private var modelManager = ServiceContainer.shared.modelManagerService
+    @State private var selectedProvider: String?
 
     private var needsPermissions: Bool {
         dictation.needsMicPermission || dictation.needsAccessibilityPermission
@@ -132,6 +133,48 @@ struct RecordingSettingsView: View {
         Form {
             if needsPermissions {
                 PermissionsBanner(dictation: dictation)
+            }
+
+            Section(String(localized: "Engine")) {
+                let engines = pluginManager.transcriptionEngines
+                if engines.isEmpty {
+                    Text(String(localized: "No transcription engines installed. Install engines via Integrations."))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker(String(localized: "Default Engine"), selection: $selectedProvider) {
+                        Text(String(localized: "None")).tag(nil as String?)
+                        Divider()
+                        ForEach(engines, id: \.providerId) { engine in
+                            HStack {
+                                Text(engine.providerDisplayName)
+                                if !engine.isConfigured {
+                                    Text("(\(String(localized: "not ready")))")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }.tag(engine.providerId as String?)
+                        }
+                    }
+                    .onChange(of: selectedProvider) { _, newValue in
+                        if let newValue {
+                            modelManager.selectProvider(newValue)
+                        }
+                    }
+
+                    if let providerId = selectedProvider,
+                       let engine = pluginManager.transcriptionEngine(for: providerId) {
+                        let models = engine.transcriptionModels
+                        if models.count > 1 {
+                            Picker(String(localized: "Model"), selection: Binding(
+                                get: { engine.selectedModelId },
+                                set: { if let id = $0 { modelManager.selectModel(providerId, modelId: id) } }
+                            )) {
+                                ForEach(models, id: \.id) { model in
+                                    Text(model.displayName).tag(model.id as String?)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Section(String(localized: "Hotkeys")) {
@@ -284,9 +327,9 @@ struct RecordingSettingsView: View {
 
             Section(String(localized: "Notch Indicator")) {
                 Picker(String(localized: "Visibility"), selection: $dictation.notchIndicatorVisibility) {
-                    Text(String(localized: "Always visible")).tag(DictationViewModel.NotchIndicatorVisibility.always)
-                    Text(String(localized: "Only during activity")).tag(DictationViewModel.NotchIndicatorVisibility.duringActivity)
-                    Text(String(localized: "Never")).tag(DictationViewModel.NotchIndicatorVisibility.never)
+                    Text(String(localized: "Always visible")).tag(NotchIndicatorVisibility.always)
+                    Text(String(localized: "Only during activity")).tag(NotchIndicatorVisibility.duringActivity)
+                    Text(String(localized: "Never")).tag(NotchIndicatorVisibility.never)
                 }
 
                 Picker(String(localized: "Left Side"), selection: $dictation.notchIndicatorLeftContent) {
@@ -351,15 +394,18 @@ struct RecordingSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .frame(minWidth: 500, minHeight: 300)
+        .onAppear {
+            selectedProvider = modelManager.selectedProviderId
+        }
     }
 
     @ViewBuilder
     private var notchContentPickerOptions: some View {
-        Text(String(localized: "Recording Indicator")).tag(DictationViewModel.NotchIndicatorContent.indicator)
-        Text(String(localized: "Timer")).tag(DictationViewModel.NotchIndicatorContent.timer)
-        Text(String(localized: "Waveform")).tag(DictationViewModel.NotchIndicatorContent.waveform)
-        Text(String(localized: "Profile")).tag(DictationViewModel.NotchIndicatorContent.profile)
-        Text(String(localized: "None")).tag(DictationViewModel.NotchIndicatorContent.none)
+        Text(String(localized: "Recording Indicator")).tag(NotchIndicatorContent.indicator)
+        Text(String(localized: "Timer")).tag(NotchIndicatorContent.timer)
+        Text(String(localized: "Waveform")).tag(NotchIndicatorContent.waveform)
+        Text(String(localized: "Profile")).tag(NotchIndicatorContent.profile)
+        Text(String(localized: "None")).tag(NotchIndicatorContent.none)
     }
 }
 

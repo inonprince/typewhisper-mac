@@ -39,11 +39,18 @@ final class AudioRecordingService: ObservableObject, @unchecked Sendable {
 
     private var audioEngine: AVAudioEngine?
     private var sampleBuffer: [Float] = []
+    private var _peakRawAudioLevel: Float = 0
     private let bufferLock = NSLock()
     private let configLock = NSLock()
     private let processingQueue = DispatchQueue(label: "com.typewhisper.audio-processing", qos: .userInteractive)
 
     static let targetSampleRate: Double = 16000
+
+    var peakRawAudioLevel: Float {
+        bufferLock.lock()
+        defer { bufferLock.unlock() }
+        return _peakRawAudioLevel
+    }
 
     var hasMicrophonePermission: Bool {
         AVAudioApplication.shared.recordPermission == .granted
@@ -135,6 +142,7 @@ final class AudioRecordingService: ObservableObject, @unchecked Sendable {
 
         bufferLock.lock()
         sampleBuffer.removeAll()
+        _peakRawAudioLevel = 0
         bufferLock.unlock()
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
@@ -221,6 +229,7 @@ final class AudioRecordingService: ObservableObject, @unchecked Sendable {
 
         bufferLock.lock()
         sampleBuffer.append(contentsOf: samples)
+        if rms > _peakRawAudioLevel { _peakRawAudioLevel = rms }
         bufferLock.unlock()
 
         DispatchQueue.main.async { [weak self] in

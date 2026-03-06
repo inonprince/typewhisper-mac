@@ -10,7 +10,9 @@ struct GeneralSettingsView: View {
         return Locale.preferredLanguages.first?.hasPrefix("de") == true ? "de" : "en"
     }()
     @State private var showRestartAlert = false
-    @ObservedObject private var modelManager = ModelManagerViewModel.shared
+    @State private var showMenuBarIconHiddenAlert = false
+    @AppStorage(UserDefaultsKeys.showMenuBarIcon) private var showMenuBarIcon = true
+    @ObservedObject private var pluginManager = PluginManager.shared
     @ObservedObject private var settings = SettingsViewModel.shared
 
     var body: some View {
@@ -49,38 +51,6 @@ struct GeneralSettingsView: View {
             }
             #endif
 
-            Section(String(localized: "Default Model")) {
-                if modelManager.readyModels.isEmpty && modelManager.configuredPluginEngines.isEmpty {
-                    Text(String(localized: "No models available. Download or configure a model in the Models tab."))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Picker(String(localized: "Model"), selection: Binding(
-                        get: { modelManager.selectedModelId },
-                        set: { if let id = $0 { modelManager.selectDefaultModel(id) } }
-                    )) {
-                        ForEach(modelManager.readyModels) { model in
-                            Text("\(model.displayName) (\(model.engineType.displayName))")
-                                .tag(model.id as String?)
-                        }
-
-                        if !modelManager.configuredPluginEngines.isEmpty && !modelManager.readyModels.isEmpty {
-                            Divider()
-                        }
-
-                        ForEach(modelManager.configuredPluginEngines, id: \.providerId) { engine in
-                            ForEach(engine.transcriptionModels, id: \.id) { model in
-                                Text("\(model.displayName) (\(engine.providerDisplayName))")
-                                    .tag(CloudProvider.fullId(provider: engine.providerId, model: model.id) as String?)
-                            }
-                        }
-                    }
-                }
-
-                Text(String(localized: "The model used for transcription unless overridden by a profile."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section(String(localized: "Language")) {
                 Picker(String(localized: "App Language"), selection: $appLanguage) {
                     Text("English").tag("en")
@@ -100,6 +70,23 @@ struct GeneralSettingsView: View {
                     }
 
                 Text(String(localized: "TypeWhisper will start automatically when you log in."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section(String(localized: "Appearance")) {
+                Toggle(String(localized: "Show menu bar icon"), isOn: $showMenuBarIcon)
+                    .onChange(of: showMenuBarIcon) { _, newValue in
+                        if !newValue {
+                            let alertShown = UserDefaults.standard.bool(forKey: UserDefaultsKeys.menuBarIconHiddenAlertShown)
+                            if !alertShown {
+                                showMenuBarIconHiddenAlert = true
+                                UserDefaults.standard.set(true, forKey: UserDefaultsKeys.menuBarIconHiddenAlertShown)
+                            }
+                        }
+                    }
+
+                Text(String(localized: "When hidden, the app is accessible via the Dock icon."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -132,6 +119,11 @@ struct GeneralSettingsView: View {
             Button(String(localized: "Later"), role: .cancel) {}
         } message: {
             Text(String(localized: "The language change will take effect after restarting TypeWhisper."))
+        }
+        .alert(String(localized: "Menu bar icon hidden"), isPresented: $showMenuBarIconHiddenAlert) {
+            Button(String(localized: "OK"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "You can access TypeWhisper settings via the Dock icon."))
         }
     }
 

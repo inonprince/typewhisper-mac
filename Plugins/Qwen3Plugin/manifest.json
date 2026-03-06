@@ -1,0 +1,9 @@
+{
+    "id": "com.typewhisper.qwen3",
+    "name": "Qwen3 ASR",
+    "version": "1.0.9",
+    "minHostVersion": "0.11.0",
+    "minOSVersion": "15.0",
+    "author": "TypeWhisper",
+    "principalClass": "Qwen3Plugin"
+}

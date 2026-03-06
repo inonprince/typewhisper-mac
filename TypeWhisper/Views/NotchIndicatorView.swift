@@ -35,9 +35,10 @@ struct NotchIndicatorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Three-zone status bar
+            // Three-zone status bar - fixed width so it doesn't shift on expansion
             statusBar
-                .frame(height: geometry.notchHeight)
+                .frame(width: closedWidth, height: geometry.notchHeight)
+                .frame(maxWidth: .infinity)
 
             // Expandable partial text area
             if viewModel.state == .recording {
@@ -114,9 +115,12 @@ struct NotchIndicatorView: View {
     @ViewBuilder
     private var statusBar: some View {
         HStack(spacing: 0) {
-            contentView(for: viewModel.notchIndicatorLeftContent, side: .leading)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .padding(.leading, 34)
+            HStack(spacing: 6) {
+                leftIndicator
+                leftContent
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.leading, 14)
 
             // Center: notch spacer (invisible black, matches hardware notch)
             if geometry.hasNotch {
@@ -124,56 +128,88 @@ struct NotchIndicatorView: View {
                     .frame(width: geometry.notchWidth)
             }
 
-            contentView(for: viewModel.notchIndicatorRightContent, side: .trailing)
+            rightContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 .padding(.trailing, 34)
         }
     }
 
-    // MARK: - Configurable content
-
-    private enum Side {
-        case leading, trailing
-    }
+    // MARK: - Left indicator (app icon or fallback state icon)
 
     @ViewBuilder
-    private func contentView(for content: DictationViewModel.NotchIndicatorContent, side: Side) -> some View {
+    private var leftIndicator: some View {
         switch viewModel.state {
-        case .idle:
-            Color.clear
+        case .idle, .promptSelection, .promptProcessing:
+            Color.clear.frame(width: 0, height: 0)
         case .recording:
-            recordingContent(for: content)
+            if let icon = viewModel.activeAppIcon {
+                appIconView(icon)
+            } else {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(1.0 + CGFloat(viewModel.audioLevel) * 0.8)
+                    .shadow(color: .yellow.opacity(dotPulse ? 0.8 : 0.2),
+                        radius: dotPulse ? 6 : 2)
+            }
         case .processing:
-            if side == .leading {
+            if let icon = viewModel.activeAppIcon {
+                appIconView(icon)
+            } else {
                 ProgressView()
                     .controlSize(.mini)
                     .tint(.white)
-            } else {
-                Color.clear
             }
         case .inserting:
-            if side == .leading, !hasActionFeedback {
+            if hasActionFeedback {
+                Color.clear.frame(width: 0, height: 0)
+            } else if let icon = viewModel.activeAppIcon {
+                appIconView(icon)
+            } else {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.system(size: 11))
-            } else {
-                Color.clear
             }
-        case .promptSelection, .promptProcessing:
-            Color.clear
         case .error:
-            if side == .leading {
+            if let icon = viewModel.activeAppIcon {
+                appIconView(icon, borderColor: .red)
+            } else {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
                     .font(.system(size: 11))
-            } else {
-                Color.clear
             }
         }
     }
 
+    private func appIconView(_ icon: NSImage, borderColor: Color? = nil) -> some View {
+        Image(nsImage: icon)
+            .resizable()
+            .frame(width: 14, height: 14)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(borderColor ?? .clear, lineWidth: 1.5)
+            )
+    }
+
+    // MARK: - Configurable content
+
     @ViewBuilder
-    private func recordingContent(for content: DictationViewModel.NotchIndicatorContent) -> some View {
+    private var leftContent: some View {
+        if case .recording = viewModel.state {
+            recordingContent(for: viewModel.notchIndicatorLeftContent)
+        }
+    }
+
+    @ViewBuilder
+    private var rightContent: some View {
+        if case .recording = viewModel.state {
+            recordingContent(for: viewModel.notchIndicatorRightContent)
+        }
+    }
+
+    @ViewBuilder
+    private func recordingContent(for content: NotchIndicatorContent) -> some View {
         switch content {
         case .indicator:
             Circle()

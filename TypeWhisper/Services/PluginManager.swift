@@ -12,6 +12,7 @@ struct PluginManifest: Codable {
     let name: String
     let version: String
     let minHostVersion: String?
+    let minOSVersion: String?
     let author: String?
     let principalClass: String
 }
@@ -22,9 +23,15 @@ struct LoadedPlugin: Identifiable {
     let manifest: PluginManifest
     let instance: TypeWhisperPlugin
     let bundle: Bundle
+    let sourceURL: URL
     var isEnabled: Bool
 
     var id: String { manifest.id }
+
+    var isBundled: Bool {
+        guard let builtInURL = Bundle.main.builtInPlugInsURL else { return false }
+        return sourceURL.path.hasPrefix(builtInURL.path)
+    }
 }
 
 // MARK: - Plugin Manager
@@ -35,7 +42,7 @@ final class PluginManager: ObservableObject {
 
     @Published var loadedPlugins: [LoadedPlugin] = []
 
-    private let pluginsDirectory: URL
+    let pluginsDirectory: URL
     private var profileNamesProvider: () -> [String] = { [] }
 
     var postProcessors: [PostProcessorPlugin] {
@@ -111,12 +118,25 @@ final class PluginManager: ObservableObject {
         }
     }
 
-    private func loadPlugin(at url: URL) {
+    func loadPlugin(at url: URL) {
         let manifestURL = url.appendingPathComponent("Contents/Resources/manifest.json")
         guard let data = try? Data(contentsOf: manifestURL),
               let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data) else {
             logger.error("Failed to read manifest from \(url.lastPathComponent)")
             return
+        }
+
+        if let minOS = manifest.minOSVersion {
+            let parts = minOS.split(separator: ".").compactMap { Int($0) }
+            let required = OperatingSystemVersion(
+                majorVersion: parts.count > 0 ? parts[0] : 0,
+                minorVersion: parts.count > 1 ? parts[1] : 0,
+                patchVersion: parts.count > 2 ? parts[2] : 0
+            )
+            if !ProcessInfo.processInfo.isOperatingSystemAtLeast(required) {
+                logger.info("Plugin \(manifest.name) requires macOS \(minOS), skipping")
+                return
+            }
         }
 
         guard !loadedPlugins.contains(where: { $0.manifest.id == manifest.id }) else {
@@ -147,7 +167,7 @@ final class PluginManager: ObservableObject {
         let isEnabled = UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? false
 
         let loaded = LoadedPlugin(
-            manifest: manifest, instance: instance, bundle: bundle, isEnabled: isEnabled
+            manifest: manifest, instance: instance, bundle: bundle, sourceURL: url, isEnabled: isEnabled
         )
         loadedPlugins.append(loaded)
 
@@ -177,6 +197,16 @@ final class PluginManager: ObservableObject {
         if enabled {
             activatePlugin(loadedPlugins[index])
         } else {
+            // If the deactivated plugin was selected as default engine, fall back to first available
+            if let engine = loadedPlugins[index].instance as? TranscriptionEnginePlugin {
+                let selectedProvider = UserDefaults.standard.string(forKey: UserDefaultsKeys.selectedEngine)
+                if selectedProvider == engine.providerId {
+                    let fallback = transcriptionEngines.first(where: { $0.providerId != engine.providerId && $0.isConfigured })
+                    if let fallback {
+                        ServiceContainer.shared.modelManagerService.selectProvider(fallback.providerId)
+                    }
+                }
+            }
             loadedPlugins[index].instance.deactivate()
             logger.info("Deactivated plugin: \(pluginId)")
         }
@@ -184,5 +214,27 @@ final class PluginManager: ObservableObject {
 
     func openPluginsFolder() {
         NSWorkspace.shared.open(pluginsDirectory)
+    }
+
+    /// Notify observers that plugin state changed (e.g. a model was loaded/unloaded)
+    func notifyPluginStateChanged() {
+        objectWillChange.send()
+    }
+
+    // MARK: - Dynamic Plugin Management
+
+    func unloadPlugin(_ pluginId: String) {
+        guard let index = loadedPlugins.firstIndex(where: { $0.manifest.id == pluginId }) else { return }
+        let plugin = loadedPlugins[index]
+        if plugin.isEnabled {
+            plugin.instance.deactivate()
+        }
+        plugin.bundle.unload()
+        loadedPlugins.remove(at: index)
+        logger.info("Unloaded plugin: \(pluginId)")
+    }
+
+    func bundleURL(for pluginId: String) -> URL? {
+        loadedPlugins.first { $0.manifest.id == pluginId }?.sourceURL
     }
 }

@@ -7,50 +7,39 @@
 Speech-to-text and AI text processing for macOS. Transcribe audio using on-device AI models or cloud APIs (Groq, OpenAI), then process the result with custom LLM prompts. Your voice data stays on your Mac with local models - or use cloud APIs for faster processing.
 
 <p align="center">
-  <video src="https://github.com/user-attachments/assets/98e1aef9-de31-434b-aa13-cfd36c0f3155" autoplay loop muted playsinline width="700"></video>
+  <video src="https://github.com/user-attachments/assets/98e1aef9-de31-434b-aa13-cfd36c0f3155" autoplay loop muted playsinline width="270"></video>
 </p>
 
 ## Screenshots
 
 <p align="center">
-  <img src=".github/screenshots/home.png" width="700" alt="Home Dashboard">
+  <a href=".github/screenshots/home.png"><img src=".github/screenshots/home.png" width="270" alt="Home Dashboard"></a>
+  <a href=".github/screenshots/recording.png"><img src=".github/screenshots/recording.png" width="270" alt="Recording & Hotkeys"></a>
+  <a href=".github/screenshots/prompts.png"><img src=".github/screenshots/prompts.png" width="270" alt="Custom Prompts"></a>
 </p>
 
 <p align="center">
-  <img src=".github/screenshots/models.png" width="340" alt="Model Manager">
-  <img src=".github/screenshots/prompts.png" width="340" alt="Custom Prompts">
+  <a href=".github/screenshots/history.png"><img src=".github/screenshots/history.png" width="270" alt="Transcription History"></a>
+  <a href=".github/screenshots/dictionary.png"><img src=".github/screenshots/dictionary.png" width="270" alt="Dictionary"></a>
+  <a href=".github/screenshots/profiles.png"><img src=".github/screenshots/profiles.png" width="270" alt="Profiles"></a>
 </p>
 
 <p align="center">
-  <img src=".github/screenshots/dictation.png" width="700" alt="Hotkey Configuration">
+  <a href=".github/screenshots/general.png"><img src=".github/screenshots/general.png" width="270" alt="General Settings"></a>
+  <a href=".github/screenshots/plugins.png"><img src=".github/screenshots/plugins.png" width="270" alt="Integrations"></a>
+  <a href=".github/screenshots/file-transcription.png"><img src=".github/screenshots/file-transcription.png" width="270" alt="File Transcription"></a>
 </p>
 
 <p align="center">
-  <img src=".github/screenshots/dictionary.png" width="340" alt="Dictionary">
-  <img src=".github/screenshots/snippets.png" width="340" alt="Snippets">
-</p>
-
-<p align="center">
-  <img src=".github/screenshots/general.png" width="340" alt="General Settings">
-</p>
-
-<p align="center">
-  <img src=".github/screenshots/history.png" width="700" alt="Transcription History">
-</p>
-
-<p align="center">
-  <img src=".github/screenshots/profiles.png" width="700" alt="Profiles with App & URL Matching">
-</p>
-
-<p align="center">
-  <img src=".github/screenshots/plugins.png" width="700" alt="Plugin Integrations">
+  <a href=".github/screenshots/snippets.png"><img src=".github/screenshots/snippets.png" width="270" alt="Snippets"></a>
+  <a href=".github/screenshots/advanced.png"><img src=".github/screenshots/advanced.png" width="270" alt="Advanced Settings"></a>
 </p>
 
 ## Features
 
 ### Transcription
 
-- **Five engines** - WhisperKit (99+ languages, streaming, translation), Parakeet TDT v3 (25 European languages, extremely fast), Apple SpeechAnalyzer (macOS 26+, no model download needed), Groq Whisper, and OpenAI Whisper
+- **Six engines** - WhisperKit (99+ languages, streaming, translation), Parakeet TDT v3 (25 European languages, extremely fast), Apple SpeechAnalyzer (macOS 26+, no model download needed), Qwen3 ASR (MLX-based), Groq Whisper, and OpenAI Whisper
 - **On-device or cloud** - All processing happens locally on your Mac, or use Groq/OpenAI Whisper APIs for faster processing
 - **Streaming preview** - See partial transcription in real-time while speaking (WhisperKit)
 - **File transcription** - Batch-process multiple audio/video files with drag & drop
@@ -291,19 +280,18 @@ See [Plugins/README.md](Plugins/README.md) for the full plugin development guide
 ```
 TypeWhisper/
 ├── typewhisper-cli/           # Command-line tool (status, models, transcribe)
-├── Plugins/                # Bundled plugins (Groq, OpenAI, Gemini, Linear, Webhook)
+├── Plugins/                # Bundled plugins (WhisperKit, Parakeet, SpeechAnalyzer, Qwen3,
+│                           #   Groq, OpenAI, Gemini, Linear, Webhook)
 ├── TypeWhisperPluginSDK/   # Plugin SDK (Swift package)
 ├── App/                    # App entry point, dependency injection
-├── Models/                 # Data models (ModelInfo, TranscriptionResult, EngineType, Profile, etc.)
+├── Models/                 # Data models (TranscriptionResult, Profile, PromptAction, etc.)
 ├── Services/
-│   ├── Engine/             # WhisperEngine, ParakeetEngine, SpeechAnalyzerEngine, TranscriptionEngine protocol
 │   ├── Cloud/              # KeychainService, WavEncoder (shared cloud utilities)
 │   ├── LLM/               # Apple Intelligence provider (cloud LLM providers are plugins)
 │   ├── HTTPServer/         # Local REST API (HTTPServer, APIRouter, APIHandlers)
-│   ├── SubtitleExporter    # SRT/VTT export
-│   ├── ModelManagerService # Model download, loading, transcription dispatch
-│   ├── AudioFileService    # Audio/video → 16kHz PCM conversion
+│   ├── ModelManagerService # Transcription dispatch (delegates to plugins)
 │   ├── AudioRecordingService
+│   ├── AudioFileService    # Audio/video - 16kHz PCM conversion
 │   ├── HotkeyService
 │   ├── TextInsertionService
 │   ├── ProfileService      # Per-app profile matching and persistence
@@ -313,9 +301,11 @@ TypeWhisper/
 │   ├── PromptActionService # Custom prompt management (SwiftData)
 │   ├── PromptProcessingService # LLM orchestration for prompt execution
 │   ├── PluginManager       # Plugin discovery, loading, and lifecycle
+│   ├── PluginRegistryService # Plugin marketplace (download, install, update)
 │   ├── PostProcessingPipeline # Priority-based text processing chain
 │   ├── EventBus            # Typed publish/subscribe event system
 │   ├── TranslationService  # On-device translation via Apple Translate
+│   ├── SubtitleExporter    # SRT/VTT export
 │   └── SoundService        # Audio feedback for recording events
 ├── ViewModels/             # MVVM view models with Combine
 ├── Views/                  # SwiftUI views

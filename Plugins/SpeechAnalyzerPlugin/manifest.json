@@ -1,0 +1,9 @@
+{
+    "id": "com.typewhisper.speechanalyzer",
+    "name": "Apple Speech",
+    "version": "1.0.6",
+    "minHostVersion": "0.12.0",
+    "minOSVersion": "26.0",
+    "author": "TypeWhisper",
+    "principalClass": "SpeechAnalyzerPlugin"
+}

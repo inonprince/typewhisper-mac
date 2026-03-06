@@ -10,5 +10,9 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>2D8ALY3LCL.com.typewhisper.mac</string>
+	</array>
 </dict>
 </plist>

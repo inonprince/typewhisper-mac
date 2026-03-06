@@ -3,172 +3,185 @@ import SwiftUI
 struct HistoryView: View {
     @ObservedObject private var viewModel = HistoryViewModel.shared
 
+    private var hasSelection: Bool {
+        !viewModel.selectedRecordIDs.isEmpty
+    }
+
     var body: some View {
-        HSplitView {
-            // MARK: - Left Panel: Search + Filters + List
-            VStack(spacing: 0) {
-                // Search
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField(String(localized: "Search..."), text: $viewModel.searchQuery)
-                        .textFieldStyle(.plain)
-                    if !viewModel.searchQuery.isEmpty {
-                        Button {
-                            viewModel.searchQuery = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(8)
-                .background(.bar)
+        HStack(spacing: 0) {
+            // MARK: - Left: List Panel
+            listPanel
+                .frame(minWidth: 280)
 
-                // Filter pickers
-                HStack(spacing: 6) {
-                    Picker(selection: Binding(
-                        get: { viewModel.selectedAppFilter ?? "" },
-                        set: { viewModel.selectedAppFilter = $0.isEmpty ? nil : $0 }
-                    )) {
-                        Text(String(localized: "All Apps")).tag("")
-                        if !viewModel.availableApps.isEmpty {
-                            Divider()
-                            ForEach(viewModel.availableApps) { app in
-                                Text(app.name).tag(app.bundleId)
-                            }
-                        }
-                    } label: {
-                        EmptyView()
-                    }
-                    .fixedSize()
-
-                    Picker(selection: $viewModel.selectedTimeRange) {
-                        ForEach(HistoryTimeRange.allCases) { range in
-                            Text(range.displayName).tag(range)
-                        }
-                    } label: {
-                        EmptyView()
-                    }
-                    .fixedSize()
-
-                    Spacer()
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(.bar)
-
+            // MARK: - Right: Detail Panel (only when selected)
+            if hasSelection {
                 Divider()
-
-                // List
-                if viewModel.filteredRecords.isEmpty {
-                    ContentUnavailableView {
-                        Label(String(localized: "No Entries"), systemImage: "clock")
-                    } description: {
-                        if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
-                            Text(String(localized: "No results for the active filters."))
-                        } else {
-                            Text(String(localized: "Dictated text will appear here."))
-                        }
-                    } actions: {
-                        if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
-                            Button(String(localized: "Clear Filters")) {
-                                viewModel.clearAllFilters()
-                            }
-                        }
-                    }
-                    .frame(maxHeight: .infinity)
-                } else {
-                    List(selection: $viewModel.selectedRecordIDs) {
-                        ForEach(viewModel.groupedSections) { section in
-                            Section {
-                                if !viewModel.collapsedGroups.contains(section.group) {
-                                    ForEach(section.records, id: \.id) { record in
-                                        RecordRow(record: record)
-                                            .tag(record.id)
-                                            .contextMenu {
-                                                recordContextMenu(for: record)
-                                            }
-                                    }
-                                }
-                            } header: {
-                                SectionHeader(
-                                    group: section.group,
-                                    count: section.records.count,
-                                    isCollapsed: viewModel.collapsedGroups.contains(section.group)
-                                ) {
-                                    viewModel.toggleSection(section.group)
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.sidebar)
-                }
-
-                Divider()
-
-                // Footer stats
-                HStack {
-                    if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
-                        Text("\(viewModel.visibleRecordCount) \(String(localized: "entries")) (\(viewModel.totalRecords) \(String(localized: "total")))")
-                    } else {
-                        Text("\(viewModel.totalRecords) \(String(localized: "entries"))")
-                    }
-                    Spacer()
-                    if !viewModel.filteredRecords.isEmpty {
-                        Button(String(localized: "Delete All Visible"), role: .destructive) {
-                            viewModel.showDeleteAllVisibleConfirmation = true
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.bar)
-                .confirmationDialog(
-                    String(localized: "Delete Entries"),
-                    isPresented: $viewModel.showDeleteAllVisibleConfirmation,
-                    titleVisibility: .visible
-                ) {
-                    Button(String(localized: "Delete"), role: .destructive) {
-                        viewModel.deleteAllVisible()
-                    }
-                    Button(String(localized: "Cancel"), role: .cancel) {}
-                } message: {
-                    if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
-                        Text("Delete \(viewModel.visibleRecordCount) entries matching current filters?")
-                    } else {
-                        Text("Delete all \(viewModel.visibleRecordCount) entries? This cannot be undone.")
-                    }
-                }
-            }
-            .frame(minWidth: 260, idealWidth: 300, maxWidth: 320)
-
-            // MARK: - Right Panel: Detail
-            if viewModel.selectedRecordIDs.count > 1 {
-                ContentUnavailableView {
-                    Label(String(localized: "\(viewModel.selectedRecordIDs.count) items selected"), systemImage: "checkmark.circle")
-                } description: {
-                    Text(String(localized: "Right-click to export or delete selected entries."))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let record = viewModel.selectedRecord {
-                RecordDetailView(record: record, viewModel: viewModel)
-            } else {
-                ContentUnavailableView {
-                    Label(String(localized: "No Selection"), systemImage: "text.document")
-                } description: {
-                    Text(String(localized: "Select a transcription to view details."))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                detailPanel
+                    .frame(minWidth: 300, idealWidth: 340)
             }
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minHeight: 400)
+    }
+
+    // MARK: - List Panel
+
+    private var listPanel: some View {
+        VStack(spacing: 0) {
+            // Search
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField(String(localized: "Search..."), text: $viewModel.searchQuery)
+                    .textFieldStyle(.plain)
+                if !viewModel.searchQuery.isEmpty {
+                    Button {
+                        viewModel.searchQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(8)
+            .background(.bar)
+
+            // Filter pickers
+            HStack(spacing: 6) {
+                Picker(selection: Binding(
+                    get: { viewModel.selectedAppFilter ?? "" },
+                    set: { viewModel.selectedAppFilter = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text(String(localized: "All Apps")).tag("")
+                    if !viewModel.availableApps.isEmpty {
+                        Divider()
+                        ForEach(viewModel.availableApps) { app in
+                            Text(app.name).tag(app.bundleId)
+                        }
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .fixedSize()
+
+                Picker(selection: $viewModel.selectedTimeRange) {
+                    ForEach(HistoryTimeRange.allCases) { range in
+                        Text(range.displayName).tag(range)
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .fixedSize()
+
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.bar)
+
+            Divider()
+
+            // List
+            if viewModel.filteredRecords.isEmpty {
+                ContentUnavailableView {
+                    Label(String(localized: "No Entries"), systemImage: "clock")
+                } description: {
+                    if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
+                        Text(String(localized: "No results for the active filters."))
+                    } else {
+                        Text(String(localized: "Dictated text will appear here."))
+                    }
+                } actions: {
+                    if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
+                        Button(String(localized: "Clear Filters")) {
+                            viewModel.clearAllFilters()
+                        }
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            } else {
+                List(selection: $viewModel.selectedRecordIDs) {
+                    ForEach(viewModel.groupedSections) { section in
+                        Section {
+                            if !viewModel.collapsedGroups.contains(section.group) {
+                                ForEach(section.records, id: \.id) { record in
+                                    RecordRow(record: record)
+                                        .tag(record.id)
+                                        .contextMenu {
+                                            recordContextMenu(for: record)
+                                        }
+                                }
+                            }
+                        } header: {
+                            SectionHeader(
+                                group: section.group,
+                                count: section.records.count,
+                                isCollapsed: viewModel.collapsedGroups.contains(section.group)
+                            ) {
+                                viewModel.toggleSection(section.group)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.plain)
+            }
+
+            Divider()
+
+            // Footer stats
+            HStack {
+                if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
+                    Text("\(viewModel.visibleRecordCount) \(String(localized: "entries")) (\(viewModel.totalRecords) \(String(localized: "total")))")
+                } else {
+                    Text("\(viewModel.totalRecords) \(String(localized: "entries"))")
+                }
+                Spacer()
+                if !viewModel.filteredRecords.isEmpty {
+                    Button(String(localized: "Delete All Visible"), role: .destructive) {
+                        viewModel.showDeleteAllVisibleConfirmation = true
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.bar)
+            .confirmationDialog(
+                String(localized: "Delete Entries"),
+                isPresented: $viewModel.showDeleteAllVisibleConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "Delete"), role: .destructive) {
+                    viewModel.deleteAllVisible()
+                }
+                Button(String(localized: "Cancel"), role: .cancel) {}
+            } message: {
+                if viewModel.hasActiveFilters || !viewModel.searchQuery.isEmpty {
+                    Text("Delete \(viewModel.visibleRecordCount) entries matching current filters?")
+                } else {
+                    Text("Delete all \(viewModel.visibleRecordCount) entries? This cannot be undone.")
+                }
+            }
+        }
+    }
+
+    // MARK: - Detail Panel
+
+    @ViewBuilder
+    private var detailPanel: some View {
+        if viewModel.selectedRecordIDs.count > 1 {
+            ContentUnavailableView {
+                Label(String(localized: "\(viewModel.selectedRecordIDs.count) items selected"), systemImage: "checkmark.circle")
+            } description: {
+                Text(String(localized: "Right-click to export or delete selected entries."))
+            }
+        } else if let record = viewModel.selectedRecord {
+            RecordDetailView(record: record, viewModel: viewModel)
+        }
     }
 
     @ViewBuilder
@@ -321,62 +334,34 @@ private struct RecordDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(record.timestamp, format: .dateTime)
-                        .font(.headline)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(record.timestamp, format: .dateTime)
+                            .font(.headline)
+                        Text(formatDuration(record.durationSeconds) + " - " + "\(record.wordsCount) \(String(localized: "words"))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
-                    // Actions
-                    Button {
-                        viewModel.copyToClipboard(record.finalText)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .help(String(localized: "Copy"))
-
-                    if viewModel.isEditing {
-                        Button(String(localized: "Cancel")) {
-                            viewModel.cancelEditing()
-                        }
-                        Button(String(localized: "Save")) {
-                            viewModel.saveEditing()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        Button {
-                            viewModel.startEditing()
-                        } label: {
-                            Image(systemName: "pencil")
-                        }
-                        .help(String(localized: "Edit"))
-                    }
-
-                    Button(role: .destructive) {
-                        viewModel.deleteRecord(record)
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .help(String(localized: "Delete"))
+                    actionButtons
                 }
 
-                HStack(spacing: 12) {
-                    Label(formatDuration(record.durationSeconds), systemImage: "waveform")
-                    Label("\(record.wordsCount) \(String(localized: "words"))", systemImage: "text.word.spacing")
+                // Metadata tags
+                HistoryFlowLayout(spacing: 6) {
                     if let lang = record.language {
-                        Label(lang.uppercased(), systemImage: "globe")
+                        metadataTag(lang.uppercased(), icon: "globe")
                     }
-                    Label(record.modelUsed ?? record.engineUsed, systemImage: "cpu")
+                    metadataTag(record.modelUsed ?? record.engineUsed, icon: "cpu")
                     if let appName = record.appName {
-                        Label(appName, systemImage: "app")
+                        metadataTag(appName, icon: "app")
                     }
                     if let domain = record.appDomain {
-                        Label(domain, systemImage: "globe.desk")
+                        metadataTag(domain, icon: "globe.desk")
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-            .padding()
+            .padding(10)
             .background(.bar)
 
             Divider()
@@ -413,7 +398,7 @@ private struct RecordDetailView: View {
                 .padding(10)
                 .background(.orange.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(.horizontal)
+                .padding(.horizontal, 10)
                 .padding(.top, 8)
             }
 
@@ -421,7 +406,7 @@ private struct RecordDetailView: View {
             if viewModel.isEditing {
                 TextEditor(text: $viewModel.editedText)
                     .font(.body)
-                    .padding()
+                    .padding(10)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
@@ -429,17 +414,112 @@ private struct RecordDetailView: View {
                         .textSelection(.enabled)
                         .font(.body)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
+                        .padding(10)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(minWidth: 320)
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        HStack(spacing: 4) {
+            if viewModel.isEditing {
+                Button(String(localized: "Cancel")) {
+                    viewModel.cancelEditing()
+                }
+                .controlSize(.small)
+                Button(String(localized: "Save")) {
+                    viewModel.saveEditing()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            } else {
+                Button {
+                    viewModel.copyToClipboard(record.finalText)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .help(String(localized: "Copy"))
+
+                Button {
+                    viewModel.startEditing()
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .help(String(localized: "Edit"))
+
+                Button(role: .destructive) {
+                    viewModel.deleteRecord(record)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .help(String(localized: "Delete"))
+            }
+        }
+        .buttonStyle(.borderless)
+    }
+
+    private func metadataTag(_ text: String, icon: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
     }
 
     private func formatDuration(_ seconds: Double) -> String {
         let s = Int(seconds)
         if s < 60 { return "\(s)s" }
         return "\(s / 60)m \(s % 60)s"
+    }
+}
+
+// MARK: - Flow Layout
+
+private struct HistoryFlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var height: CGFloat = 0
+        for (index, row) in rows.enumerated() {
+            let rowHeight = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+            height += rowHeight
+            if index < rows.count - 1 { height += spacing }
+        }
+        return CGSize(width: proposal.width ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        for row in rows {
+            let rowHeight = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+            var x = bounds.minX
+            for subview in row {
+                let size = subview.sizeThatFits(.unspecified)
+                subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += rowHeight + spacing
+        }
+    }
+
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [[LayoutSubviews.Element]] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [[LayoutSubviews.Element]] = [[]]
+        var currentWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if currentWidth + size.width > maxWidth && !rows[rows.count - 1].isEmpty {
+                rows.append([])
+                currentWidth = 0
+            }
+            rows[rows.count - 1].append(subview)
+            currentWidth += size.width + spacing
+        }
+        return rows
     }
 }

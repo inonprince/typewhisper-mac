@@ -19,13 +19,17 @@ public extension TypeWhisperPlugin {
 
 // MARK: - LLM Provider Plugin
 
-public struct PluginModelInfo: Sendable {
+public final class PluginModelInfo: @unchecked Sendable {
     public let id: String
     public let displayName: String
+    public let sizeDescription: String
+    public let languageCount: Int
 
-    public init(id: String, displayName: String) {
+    public init(id: String, displayName: String, sizeDescription: String = "", languageCount: Int = 0) {
         self.id = id
         self.displayName = displayName
+        self.sizeDescription = sizeDescription
+        self.languageCount = languageCount
     }
 }
 
@@ -72,13 +76,27 @@ public struct AudioData: Sendable {
     }
 }
 
+public struct PluginTranscriptionSegment: Sendable {
+    public let text: String
+    public let start: Double
+    public let end: Double
+
+    public init(text: String, start: Double, end: Double) {
+        self.text = text
+        self.start = start
+        self.end = end
+    }
+}
+
 public struct PluginTranscriptionResult: Sendable {
     public let text: String
     public let detectedLanguage: String?
+    public let segments: [PluginTranscriptionSegment]
 
-    public init(text: String, detectedLanguage: String? = nil) {
+    public init(text: String, detectedLanguage: String? = nil, segments: [PluginTranscriptionSegment] = []) {
         self.text = text
         self.detectedLanguage = detectedLanguage
+        self.segments = segments
     }
 }
 
@@ -91,6 +109,20 @@ public protocol TranscriptionEnginePlugin: TypeWhisperPlugin {
     func selectModel(_ modelId: String)
     var supportsTranslation: Bool { get }
     func transcribe(audio: AudioData, language: String?, translate: Bool, prompt: String?) async throws -> PluginTranscriptionResult
+
+    var supportsStreaming: Bool { get }
+    var supportedLanguages: [String] { get }
+    func transcribe(audio: AudioData, language: String?, translate: Bool, prompt: String?,
+                    onProgress: @Sendable @escaping (String) -> Bool) async throws -> PluginTranscriptionResult
+}
+
+public extension TranscriptionEnginePlugin {
+    var supportsStreaming: Bool { false }
+    var supportedLanguages: [String] { [] }
+    func transcribe(audio: AudioData, language: String?, translate: Bool, prompt: String?,
+                    onProgress: @Sendable @escaping (String) -> Bool) async throws -> PluginTranscriptionResult {
+        try await transcribe(audio: audio, language: language, translate: translate, prompt: prompt)
+    }
 }
 
 // MARK: - Action Plugin

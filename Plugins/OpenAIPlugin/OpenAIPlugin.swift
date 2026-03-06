@@ -67,6 +67,22 @@ final class OpenAIPlugin: NSObject, TranscriptionEnginePlugin, LLMProviderPlugin
 
     var supportsTranslation: Bool { true }
 
+    var supportedLanguages: [String] {
+        [
+            "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo",
+            "br", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
+            "et", "eu", "fa", "fi", "fo", "fr", "gl", "gu", "ha", "haw",
+            "he", "hi", "hr", "ht", "hu", "hy", "id", "is", "it", "ja",
+            "jw", "ka", "kk", "km", "kn", "ko", "la", "lb", "ln", "lo",
+            "lt", "lv", "mg", "mi", "mk", "ml", "mn", "mr", "ms", "mt",
+            "my", "ne", "nl", "nn", "no", "oc", "pa", "pl", "ps", "pt",
+            "ro", "ru", "sa", "sd", "si", "sk", "sl", "sn", "so", "sq",
+            "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl",
+            "tr", "tt", "uk", "ur", "uz", "vi", "vo", "yi", "yo", "yue",
+            "zh",
+        ]
+    }
+
     func transcribe(audio: AudioData, language: String?, translate: Bool, prompt: String?) async throws -> PluginTranscriptionResult {
         guard let apiKey = _apiKey, !apiKey.isEmpty else {
             throw PluginTranscriptionError.notConfigured
@@ -157,12 +173,13 @@ private struct OpenAISettingsView: View {
     @State private var validationResult: Bool?
     @State private var showApiKey = false
     @State private var selectedModel: String = ""
+    private let bundle = Bundle(for: OpenAIPlugin.self)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // API Key Section
             VStack(alignment: .leading, spacing: 8) {
-                Text("API Key")
+                Text("API Key", bundle: bundle)
                     .font(.headline)
 
                 HStack(spacing: 8) {
@@ -183,7 +200,7 @@ private struct OpenAISettingsView: View {
                     .buttonStyle(.borderless)
 
                     if plugin.isConfigured {
-                        Button("Remove") {
+                        Button(String(localized: "Remove", bundle: bundle)) {
                             apiKeyInput = ""
                             validationResult = nil
                             plugin.removeApiKey()
@@ -192,7 +209,7 @@ private struct OpenAISettingsView: View {
                         .controlSize(.small)
                         .foregroundStyle(.red)
                     } else {
-                        Button("Save") {
+                        Button(String(localized: "Save", bundle: bundle)) {
                             saveApiKey()
                         }
                         .buttonStyle(.borderedProminent)
@@ -204,7 +221,7 @@ private struct OpenAISettingsView: View {
                 if isValidating {
                     HStack(spacing: 4) {
                         ProgressView().controlSize(.small)
-                        Text("Validating...")
+                        Text("Validating...", bundle: bundle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -212,7 +229,7 @@ private struct OpenAISettingsView: View {
                     HStack(spacing: 4) {
                         Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
                             .foregroundStyle(result ? .green : .red)
-                        Text(result ? "Valid API Key" : "Invalid API Key")
+                        Text(result ? String(localized: "Valid API Key", bundle: bundle) : String(localized: "Invalid API Key", bundle: bundle))
                             .font(.caption)
                             .foregroundStyle(result ? .green : .red)
                     }
@@ -224,7 +241,7 @@ private struct OpenAISettingsView: View {
 
                 // Model Selection
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Model")
+                    Text("Model", bundle: bundle)
                         .font(.headline)
 
                     Picker("Model", selection: $selectedModel) {
@@ -238,14 +255,14 @@ private struct OpenAISettingsView: View {
                     }
 
                     if selectedModel.hasPrefix("gpt-4o") {
-                        Text("GPT-4o models do not support Whisper Translate (translation to English).")
+                        Text("GPT-4o models do not support Whisper Translate (translation to English).", bundle: bundle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
 
-            Text("API keys are stored securely in the Keychain.")
+            Text("API keys are stored securely in the Keychain", bundle: bundle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

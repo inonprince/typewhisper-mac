@@ -20,14 +20,15 @@ PROCESS_NAME="TypeWhisper"
 TABS=(
     "Home:home"
     "General:general"
-    "Models:models"
-    "Dictation:dictation"
+    "Recording:recording"
+    "File Transcription:file-transcription"
     "History:history"
     "Dictionary:dictionary"
     "Snippets:snippets"
     "Profiles:profiles"
     "Prompts:prompts"
     "Integrations:plugins"
+    "Advanced:advanced"
 )
 
 # ---------------------------------------------------------------------------
@@ -178,40 +179,48 @@ if [ "$SKIP_BUILD" = false ]; then
     echo "Build complete."
 fi
 
-APP_PATH="$BUILD_DIR/Build/Products/Debug/$APP_NAME.app"
+if [ "$SKIP_BUILD" = true ]; then
+    # Use the already-running instance
+    if ! pgrep -x "$PROCESS_NAME" >/dev/null; then
+        echo "ERROR: App is not running. Start it first or run without --skip-build."
+        exit 1
+    fi
+    echo "Using running instance."
+else
+    APP_PATH="$BUILD_DIR/Build/Products/Debug/$APP_NAME.app"
 
-if [ ! -d "$APP_PATH" ]; then
-    echo "ERROR: App not found at $APP_PATH"
-    echo "Run without --skip-build first."
-    exit 1
+    if [ ! -d "$APP_PATH" ]; then
+        echo "ERROR: App not found at $APP_PATH"
+        echo "Run without --skip-build first."
+        exit 1
+    fi
+
+    # Kill existing instance and start fresh
+    log "Starting app"
+    pkill -x "$PROCESS_NAME" 2>/dev/null || true
+    sleep 1
+
+    open "$APP_PATH"
+    sleep 3
+
+    echo "App started. Waiting for UI..."
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2: Kill existing instance and start fresh
+# Open Settings via menu bar extra
 # ---------------------------------------------------------------------------
 
-log "Starting app"
-pkill -x "$PROCESS_NAME" 2>/dev/null || true
-sleep 1
-
-open "$APP_PATH"
-sleep 3
-
-echo "App started. Waiting for UI..."
-
-# ---------------------------------------------------------------------------
-# Step 3: Open Settings via menu bar extra
-# ---------------------------------------------------------------------------
-
-log "Opening Settings"
-open_settings_via_menu
-sleep 2
-
-# Verify settings window opened
 WINDOW_ID=$(get_settings_window_id)
 if [ -z "$WINDOW_ID" ]; then
-    echo "ERROR: Settings window did not open"
-    exit 1
+    log "Opening Settings"
+    open_settings_via_menu
+    sleep 2
+
+    WINDOW_ID=$(get_settings_window_id)
+    if [ -z "$WINDOW_ID" ]; then
+        echo "ERROR: Settings window did not open"
+        exit 1
+    fi
 fi
 echo "Settings window found (ID=$WINDOW_ID)"
 
