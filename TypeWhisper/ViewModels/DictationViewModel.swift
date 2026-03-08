@@ -200,7 +200,7 @@ final class DictationViewModel: ObservableObject {
     }
 
     var canDictate: Bool {
-        modelManager.isModelReady
+        modelManager.canTranscribe
     }
 
     var needsMicPermission: Bool {

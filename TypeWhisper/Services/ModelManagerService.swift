@@ -53,6 +53,15 @@ final class ModelManagerService: ObservableObject {
         return PluginManager.shared.transcriptionEngine(for: providerId)?.isConfigured ?? false
     }
 
+    /// True when a model is ready or can be auto-restored (was auto-unloaded but provider exists).
+    var canTranscribe: Bool {
+        guard let providerId = selectedProviderId else { return false }
+        let plugin = PluginManager.shared.transcriptionEngine(for: providerId)
+        if plugin?.isConfigured == true { return true }
+        // Auto-unloaded models can be restored if auto-unload is active
+        return autoUnloadSeconds != 0 && plugin != nil
+    }
+
     var activeEngineName: String? {
         guard let providerId = selectedProviderId else { return nil }
         return PluginManager.shared.transcriptionEngine(for: providerId)?.providerDisplayName
