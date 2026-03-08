@@ -156,11 +156,13 @@ final class Qwen3Plugin: NSObject, TranscriptionEnginePlugin, @unchecked Sendabl
         }
     }
 
-    fileprivate func unloadModel() {
+    func unloadModel(clearPersistence: Bool = true) {
         model = nil
         loadedModelId = nil
         modelState = .notLoaded
-        host?.setUserDefault(nil, forKey: "loadedModel")
+        if clearPersistence {
+            host?.setUserDefault(nil, forKey: "loadedModel")
+        }
         host?.notifyCapabilitiesChanged()
     }
 
@@ -173,7 +175,7 @@ final class Qwen3Plugin: NSObject, TranscriptionEnginePlugin, @unchecked Sendabl
         try? FileManager.default.removeItem(at: modelDir)
     }
 
-    fileprivate func restoreLoadedModel() async {
+    func restoreLoadedModel() async {
         guard let savedId = host?.userDefault(forKey: "loadedModel") as? String,
               let modelDef = Self.availableModels.first(where: { $0.id == savedId }) else {
             return

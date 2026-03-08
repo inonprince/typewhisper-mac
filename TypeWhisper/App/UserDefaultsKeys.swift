@@ -19,6 +19,7 @@ enum UserDefaultsKeys {
     static let selectedEngine = "selectedEngine"
     static let selectedModelId = "selectedModelId"
     static let loadedModelIds = "loadedModelIds"
+    static let modelAutoUnloadSeconds = "modelAutoUnloadSeconds"
 
     // MARK: - Settings
     static let selectedLanguage = "selectedLanguage"

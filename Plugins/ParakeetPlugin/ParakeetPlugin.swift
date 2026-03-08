@@ -191,16 +191,18 @@ final class ParakeetPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Send
         }
     }
 
-    fileprivate func unloadModel() {
+    func unloadModel(clearPersistence: Bool = true) {
         asrManager = nil
         loadedModelId = nil
         modelState = .notLoaded
         downloadProgress = 0
-        host?.setUserDefault(nil, forKey: "loadedModel")
+        if clearPersistence {
+            host?.setUserDefault(nil, forKey: "loadedModel")
+        }
         host?.notifyCapabilitiesChanged()
     }
 
-    fileprivate func restoreLoadedModel() async {
+    func restoreLoadedModel() async {
         guard host?.userDefault(forKey: "loadedModel") as? String != nil else {
             return
         }

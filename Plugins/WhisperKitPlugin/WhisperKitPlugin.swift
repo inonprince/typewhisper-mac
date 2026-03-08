@@ -229,12 +229,14 @@ final class WhisperKitPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Se
         }
     }
 
-    fileprivate func unloadModel() {
+    func unloadModel(clearPersistence: Bool = true) {
         whisperKit = nil
         loadedModelId = nil
         modelState = .notLoaded
         downloadProgress = 0
-        host?.setUserDefault(nil, forKey: "loadedModel")
+        if clearPersistence {
+            host?.setUserDefault(nil, forKey: "loadedModel")
+        }
         host?.notifyCapabilitiesChanged()
     }
 
@@ -246,7 +248,7 @@ final class WhisperKitPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Se
         try? FileManager.default.removeItem(at: modelPath)
     }
 
-    fileprivate func restoreLoadedModel() async {
+    func restoreLoadedModel() async {
         guard let savedId = host?.userDefault(forKey: "loadedModel") as? String,
               let modelDef = Self.availableModels.first(where: { $0.id == savedId }) else {
             return

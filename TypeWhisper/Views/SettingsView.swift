@@ -174,6 +174,24 @@ struct RecordingSettingsView: View {
                             }
                         }
                     }
+
+                    Picker(String(localized: "Auto-unload model"), selection: Binding(
+                        get: { modelManager.autoUnloadSeconds },
+                        set: { modelManager.autoUnloadSeconds = $0 }
+                    )) {
+                        Text(String(localized: "Never")).tag(0)
+                        Divider()
+                        Text(String(localized: "Immediate")).tag(-1)
+                        Text(String(localized: "After 2 minutes")).tag(120)
+                        Text(String(localized: "After 5 minutes")).tag(300)
+                        Text(String(localized: "After 10 minutes")).tag(600)
+                        Text(String(localized: "After 30 minutes")).tag(1800)
+                        Text(String(localized: "After 1 hour")).tag(3600)
+                    }
+
+                    Text(String(localized: "Automatically unloads local models from memory after inactivity. It reloads when needed. Does not affect cloud engines."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 

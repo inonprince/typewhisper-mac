@@ -29,10 +29,20 @@ enum TranscriptionEngineError: LocalizedError {
 final class ModelManagerService: ObservableObject {
     @Published private(set) var selectedProviderId: String?
 
+    @Published var autoUnloadSeconds: Int {
+        didSet {
+            UserDefaults.standard.set(autoUnloadSeconds, forKey: UserDefaultsKeys.modelAutoUnloadSeconds)
+            scheduleAutoUnloadIfNeeded()
+        }
+    }
+
+    private var autoUnloadWorkItem: DispatchWorkItem?
+
     private let providerKey = UserDefaultsKeys.selectedEngine
     private let modelKey = UserDefaultsKeys.selectedModelId
 
     init() {
+        self.autoUnloadSeconds = UserDefaults.standard.integer(forKey: UserDefaultsKeys.modelAutoUnloadSeconds)
         self.selectedProviderId = UserDefaults.standard.string(forKey: providerKey)
     }
 
@@ -121,8 +131,14 @@ final class ModelManagerService: ObservableObject {
     ) async throws -> TranscriptionResult {
         let providerId = engineOverrideId ?? selectedProviderId
         guard let providerId,
-              let plugin = PluginManager.shared.transcriptionEngine(for: providerId),
-              plugin.isConfigured else {
+              let plugin = PluginManager.shared.transcriptionEngine(for: providerId) else {
+            throw TranscriptionEngineError.modelNotLoaded
+        }
+
+        if !plugin.isConfigured {
+            await plugin.restoreLoadedModel()
+        }
+        guard plugin.isConfigured else {
             throw TranscriptionEngineError.modelNotLoaded
         }
 
@@ -149,6 +165,8 @@ final class ModelManagerService: ObservableObject {
 
         let processingTime = CFAbsoluteTimeGetCurrent() - startTime
 
+        scheduleAutoUnloadIfNeeded()
+
         return TranscriptionResult(
             text: result.text,
             detectedLanguage: result.detectedLanguage,
@@ -170,8 +188,14 @@ final class ModelManagerService: ObservableObject {
     ) async throws -> TranscriptionResult {
         let providerId = engineOverrideId ?? selectedProviderId
         guard let providerId,
-              let plugin = PluginManager.shared.transcriptionEngine(for: providerId),
-              plugin.isConfigured else {
+              let plugin = PluginManager.shared.transcriptionEngine(for: providerId) else {
+            throw TranscriptionEngineError.modelNotLoaded
+        }
+
+        if !plugin.isConfigured {
+            await plugin.restoreLoadedModel()
+        }
+        guard plugin.isConfigured else {
             throw TranscriptionEngineError.modelNotLoaded
         }
 
@@ -210,6 +234,8 @@ final class ModelManagerService: ObservableObject {
 
         let processingTime = CFAbsoluteTimeGetCurrent() - startTime
 
+        scheduleAutoUnloadIfNeeded()
+
         return TranscriptionResult(
             text: result.text,
             detectedLanguage: result.detectedLanguage,
@@ -218,5 +244,38 @@ final class ModelManagerService: ObservableObject {
             engineUsed: providerId,
             segments: result.segments.map { TranscriptionSegment(text: $0.text, start: $0.start, end: $0.end) }
         )
+    }
+
+    // MARK: - Auto-Unload
+
+    func scheduleAutoUnloadIfNeeded() {
+        autoUnloadWorkItem?.cancel()
+        autoUnloadWorkItem = nil
+
+        let seconds = autoUnloadSeconds
+        guard seconds != 0 else { return }
+
+        if seconds == -1 {
+            performAutoUnload()
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.performAutoUnload()
+        }
+        autoUnloadWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(seconds), execute: workItem)
+    }
+
+    func cancelAutoUnloadTimer() {
+        autoUnloadWorkItem?.cancel()
+        autoUnloadWorkItem = nil
+    }
+
+    private func performAutoUnload() {
+        guard let providerId = selectedProviderId,
+              let plugin = PluginManager.shared.transcriptionEngine(for: providerId),
+              plugin.isConfigured else { return }
+        plugin.unloadModel(clearPersistence: false)
     }
 }

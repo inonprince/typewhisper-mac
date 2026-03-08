@@ -442,6 +442,56 @@
         }
       }
     },
+    "After 1 hour" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach 1 Stunde"
+          }
+        }
+      }
+    },
+    "After 10 minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach 10 Minuten"
+          }
+        }
+      }
+    },
+    "After 2 minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach 2 Minuten"
+          }
+        }
+      }
+    },
+    "After 30 minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach 30 Minuten"
+          }
+        }
+      }
+    },
+    "After 5 minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach 5 Minuten"
+          }
+        }
+      }
+    },
     "All" : {
       "localizations" : {
         "de" : {
@@ -618,6 +668,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Automatisch erkennen"
+          }
+        }
+      }
+    },
+    "Auto-unload model" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modell automatisch entladen"
+          }
+        }
+      }
+    },
+    "Automatically unloads local models from memory after inactivity. It reloads when needed. Does not affect cloud engines." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entlädt lokale Modelle nach Inaktivität automatisch aus dem Arbeitsspeicher. Bei Bedarf werden sie neu geladen. Cloud-Engines sind nicht betroffen."
           }
         }
       }
@@ -1611,6 +1681,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Symbol"
+          }
+        }
+      }
+    },
+    "Immediate" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sofort"
           }
         }
       }

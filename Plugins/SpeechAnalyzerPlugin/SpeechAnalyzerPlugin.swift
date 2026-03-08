@@ -227,7 +227,7 @@ final class SpeechAnalyzerPlugin: NSObject, TranscriptionEnginePlugin, @unchecke
         }
     }
 
-    fileprivate func unloadModel() {
+    func unloadModel(clearPersistence: Bool = true) {
         if let locale = currentLocale {
             releaseTask = Task { await AssetInventory.release(reservedLocale: locale) }
         }
@@ -235,11 +235,13 @@ final class SpeechAnalyzerPlugin: NSObject, TranscriptionEnginePlugin, @unchecke
         loadedModelId = nil
         modelState = .notLoaded
         downloadProgress = 0
-        host?.setUserDefault(nil, forKey: "loadedModel")
+        if clearPersistence {
+            host?.setUserDefault(nil, forKey: "loadedModel")
+        }
         host?.notifyCapabilitiesChanged()
     }
 
-    fileprivate func restoreLoadedModel() async {
+    func restoreLoadedModel() async {
         guard let savedId = host?.userDefault(forKey: "loadedModel") as? String,
               let modelDef = cachedModels.first(where: { $0.id == savedId }) else {
             return

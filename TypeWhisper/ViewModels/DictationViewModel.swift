@@ -302,6 +302,9 @@ final class DictationViewModel: ObservableObject {
         // Dismiss prompt palette if active
         promptPaletteHandler.hide()
 
+        // Cancel auto-unload timer to prevent unloading during recording
+        modelManager.cancelAutoUnloadTimer()
+
         guard canDictate else {
             showError("No model loaded. Please download a model first.")
             return
