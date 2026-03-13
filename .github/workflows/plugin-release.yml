@@ -43,6 +43,7 @@ jobs:
             deepgram) TARGET="DeepgramPlugin" ;;
             assemblyai) TARGET="AssemblyAIPlugin" ;;
             obsidian) TARGET="ObsidianPlugin" ;;
+            script) TARGET="ScriptPlugin" ;;
             *) echo "Unknown plugin: $PLUGIN_NAME" && exit 1 ;;
           esac
           # Set deployment target (SpeechAnalyzer requires macOS 26+)

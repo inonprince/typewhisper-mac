@@ -546,7 +546,8 @@ final class DictationViewModel: ObservableObject {
                     appName: activeApp.name,
                     bundleIdentifier: activeApp.bundleId,
                     url: activeApp.url,
-                    language: language
+                    language: language,
+                    profileName: self.matchedProfile?.name
                 )
                 text = try await postProcessingPipeline.process(
                     text: text, context: ppContext, llmHandler: llmHandler

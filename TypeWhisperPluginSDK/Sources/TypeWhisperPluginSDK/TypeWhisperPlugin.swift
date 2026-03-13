@@ -47,12 +47,14 @@ public struct PostProcessingContext: Sendable {
     public let bundleIdentifier: String?
     public let url: String?
     public let language: String?
+    public let profileName: String?
 
-    public init(appName: String? = nil, bundleIdentifier: String? = nil, url: String? = nil, language: String? = nil) {
+    public init(appName: String? = nil, bundleIdentifier: String? = nil, url: String? = nil, language: String? = nil, profileName: String? = nil) {
         self.appName = appName
         self.bundleIdentifier = bundleIdentifier
         self.url = url
         self.language = language
+        self.profileName = profileName
     }
 }
 
