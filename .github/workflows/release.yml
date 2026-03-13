@@ -67,6 +67,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM=2D8ALY3LCL \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$VERSION"
 
@@ -77,8 +78,13 @@ jobs:
           cd build/Build/Products/Release
           find TypeWhisper.app -name '._*' -delete
           xattr -cr TypeWhisper.app
+          # Pre-process entitlements to resolve $(APP_GROUP_ID)
+          ENTITLEMENTS_SRC="${GITHUB_WORKSPACE}/TypeWhisper/Resources/TypeWhisper.entitlements"
+          ENTITLEMENTS_DEST="${RUNNER_TEMP}/TypeWhisper.entitlements"
+          sed "s/\$(APP_GROUP_ID)/2D8ALY3LCL.com.typewhisper.mac/g" "$ENTITLEMENTS_SRC" > "$ENTITLEMENTS_DEST"
+
           codesign --force --deep --options runtime --timestamp \
-            --entitlements "${GITHUB_WORKSPACE}/TypeWhisper/Resources/TypeWhisper.entitlements" \
+            --entitlements "$ENTITLEMENTS_DEST" \
             --sign "$MACOS_SIGNING_IDENTITY" \
             TypeWhisper.app
           codesign --verify --deep --strict --verbose=2 TypeWhisper.app

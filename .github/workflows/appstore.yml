@@ -79,6 +79,7 @@ jobs:
             -configuration AppStoreRelease \
             -archivePath build/TypeWhisper.xcarchive \
             -destination 'generic/platform=macOS' \
+            DEVELOPMENT_TEAM=2D8ALY3LCL \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$VERSION"
 
