@@ -23,26 +23,26 @@ final class MemoryService: ObservableObject {
     }
 
     static let defaultExtractionPrompt = """
-    You extract ONLY lasting personal facts about the speaker from transcribed speech. \
-    Return [] in 95% of cases - most speech contains nothing worth remembering permanently.
+You extract ONLY lasting personal facts about the speaker from transcribed speech. \
+Return [] in 95% of cases - most speech contains nothing worth remembering permanently.
 
-    ONLY extract if the speaker explicitly reveals:
-    - Their name, job title, or employer
-    - A long-term project they work on
-    - A strong repeated preference ("I always...", "I prefer...")
-    - Names of close colleagues or family members
+ONLY extract if the speaker explicitly reveals:
+- Their name, job title, or employer
+- A long-term project they work on
+- A strong repeated preference ("I always...", "I prefer...")
+- Names of close colleagues or family members
 
-    NEVER extract:
-    - What the speaker is dictating (emails, notes, messages, tasks, questions)
-    - Temporary plans ("meeting tomorrow", "need to call X")
-    - Opinions, thoughts, or statements about any topic
-    - Anything that sounds like content being dictated rather than self-revelation
+NEVER extract:
+- What the speaker is dictating (emails, notes, messages, tasks, questions)
+- Temporary plans ("meeting tomorrow", "need to call X")
+- Opinions, thoughts, or statements about any topic
+- Anything that sounds like content being dictated rather than self-revelation
 
-    When in doubt: return []
+When in doubt: return []
 
-    JSON format: [{"content": "...", "type": "fact", "confidence": 0.9}]
-    Return ONLY the JSON array, nothing else.
-    """
+JSON format: [{"content": "...", "type": "fact", "confidence": 0.9}]
+Return ONLY the JSON array, nothing else.
+"""
 
     private let promptProcessingService: PromptProcessingService
     private var eventSubscriptionId: UUID?
@@ -103,7 +103,7 @@ final class MemoryService: ObservableObject {
         let prompt = extractionPrompt
         let model = extractionModel
 
-        Task.detached { [weak self] in
+        Task { [weak self] in
             guard let self else { return }
             do {
                 try await self.extractAndStore(payload: payload, providerId: providerId, prompt: prompt, model: model)
@@ -130,7 +130,7 @@ final class MemoryService: ObservableObject {
         ))
         guard !entries.isEmpty else { return }
 
-        let plugins = await MainActor.run { PluginManager.shared.memoryStoragePlugins }
+        let plugins = PluginManager.shared.memoryStoragePlugins
         guard !plugins.isEmpty else { return }
 
         let deduped = await deduplicate(entries: entries, using: plugins)
@@ -252,7 +252,7 @@ final class MemoryService: ObservableObject {
         }
         guard !entries.isEmpty else { return }
 
-        Task.detached {
+        Task {
             for plugin in plugins where plugin.isReady {
                 try? await plugin.store(entries)
                 logger.info("Stored \(entries.count) correction(s) in \(plugin.storageName)")

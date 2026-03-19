@@ -15,7 +15,7 @@ final class Profile {
     var engineOverride: String?
     var cloudModelOverride: String?
     var promptActionId: String?
-    var memoryEnabled: Bool
+    var memoryEnabled: Bool = false
     var hotkeyData: Data?
     var createdAt: Date
     var updatedAt: Date

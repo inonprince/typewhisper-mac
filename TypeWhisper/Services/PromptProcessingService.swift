@@ -13,7 +13,7 @@ class PromptProcessingService: ObservableObject {
         didSet { UserDefaults.standard.set(selectedCloudModel, forKey: "llmCloudModel") }
     }
 
-    var memoryService: MemoryService?
+    weak var memoryService: MemoryService?
     private var appleIntelligenceProvider: LLMProvider?
 
     static let appleIntelligenceId = "appleIntelligence"

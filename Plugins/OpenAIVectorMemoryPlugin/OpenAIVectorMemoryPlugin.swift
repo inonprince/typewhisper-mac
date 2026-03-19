@@ -41,13 +41,12 @@ final class OpenAIVectorMemoryPlugin: NSObject, TypeWhisperPlugin, MemoryStorage
     }
 
     func deactivate() {
-        // Capture values before nilling - flush needs them
+        // Capture all needed values before nilling
         let key = apiKey, storeId = vectorStoreId, pending = unsyncedIds
-        if !pending.isEmpty {
+        let entriesToFlush = localEntries.filter { pending.contains($0.id) }
+        if let key, let storeId, !entriesToFlush.isEmpty {
             Task { [weak self] in
-                guard let self, let key, let storeId else { return }
-                let entries = self.localEntries.filter { pending.contains($0.id) }
-                try? await self.uploadAndAttach(entries: entries, apiKey: key, storeId: storeId)
+                try? await self?.uploadAndAttach(entries: entriesToFlush, apiKey: key, storeId: storeId)
             }
         }
         host = nil
