@@ -199,7 +199,7 @@ public struct MemorySource: Codable, Sendable {
 
 public struct MemoryEntry: Codable, Sendable, Identifiable {
     public let id: UUID
-    public let content: String
+    public var content: String
     public let type: MemoryType
     public let source: MemorySource
     public let metadata: [String: String]
@@ -228,6 +228,85 @@ public struct MemoryEntry: Codable, Sendable, Identifiable {
         self.lastAccessedAt = lastAccessedAt
         self.accessCount = accessCount
         self.confidence = confidence
+    }
+}
+
+// MARK: - Memory JSON Coding
+
+public extension JSONEncoder {
+    static var memoryEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+public extension JSONDecoder {
+    static var memoryDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}
+
+// MARK: - Memory Row View (shared across plugins)
+
+public struct MemoryRowView: View {
+    public let memory: MemoryEntry
+    public let onDelete: () -> Void
+    public let onSave: (String) -> Void
+    @State private var isEditing = false
+    @State private var editText = ""
+
+    public init(memory: MemoryEntry, onDelete: @escaping () -> Void, onSave: @escaping (String) -> Void) {
+        self.memory = memory
+        self.onDelete = onDelete
+        self.onSave = onSave
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if isEditing {
+                TextField("", text: $editText)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { saveEdit() }
+                HStack {
+                    Button(String(localized: "Cancel")) { isEditing = false }
+                        .buttonStyle(.borderless).font(.caption)
+                    Button(String(localized: "Save")) { saveEdit() }
+                        .buttonStyle(.borderless).font(.caption)
+                }
+            } else {
+                Text(memory.content).font(.body)
+            }
+
+            HStack(spacing: 8) {
+                Text(memory.type.rawValue)
+                    .font(.caption)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(.secondary.opacity(0.15))
+                    .clipShape(Capsule())
+                if let app = memory.source.appName {
+                    Text(app).font(.caption).foregroundStyle(.secondary)
+                }
+                Text(memory.createdAt, style: .relative)
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button { editText = memory.content; isEditing = true } label: {
+                    Image(systemName: "pencil").font(.caption)
+                }.buttonStyle(.borderless)
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash").font(.caption)
+                }.buttonStyle(.borderless)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func saveEdit() {
+        let trimmed = editText.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { onSave(trimmed) }
+        isEditing = false
     }
 }
 

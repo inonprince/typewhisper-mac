@@ -47,7 +47,7 @@ final class MemoryService: ObservableObject {
     private let promptProcessingService: PromptProcessingService
     private var eventSubscriptionId: UUID?
     private var lastExtractionTime: Date = .distantPast
-    private let extractionCooldown: TimeInterval = 30 // seconds between LLM calls
+    private let extractionCooldown: TimeInterval = 30
 
     init(promptProcessingService: PromptProcessingService) {
         self.promptProcessingService = promptProcessingService
@@ -55,8 +55,8 @@ final class MemoryService: ObservableObject {
         self.extractionProviderId = UserDefaults.standard.string(forKey: UserDefaultsKeys.memoryExtractionProvider) ?? ""
         self.extractionModel = UserDefaults.standard.string(forKey: UserDefaultsKeys.memoryExtractionModel) ?? ""
         self.minimumTextLength = UserDefaults.standard.object(forKey: UserDefaultsKeys.memoryMinTextLength) as? Int ?? 50
-        let savedPrompt = UserDefaults.standard.string(forKey: UserDefaultsKeys.memoryExtractionPrompt) ?? ""
-        self.extractionPrompt = savedPrompt.isEmpty ? Self.defaultExtractionPrompt : savedPrompt
+        let saved = UserDefaults.standard.string(forKey: UserDefaultsKeys.memoryExtractionPrompt) ?? ""
+        self.extractionPrompt = saved.isEmpty ? Self.defaultExtractionPrompt : saved
     }
 
     // MARK: - Lifecycle
@@ -64,13 +64,8 @@ final class MemoryService: ObservableObject {
     func startListening() {
         guard eventSubscriptionId == nil else { return }
         eventSubscriptionId = EventBus.shared.subscribe { [weak self] event in
-            switch event {
-            case .transcriptionCompleted(let payload):
-                await MainActor.run {
-                    self?.handleTranscription(payload)
-                }
-            default:
-                break
+            if case .transcriptionCompleted(let payload) = event {
+                await MainActor.run { self?.handleTranscription(payload) }
             }
         }
         logger.info("Memory service started listening")
@@ -80,107 +75,78 @@ final class MemoryService: ObservableObject {
         if let id = eventSubscriptionId {
             EventBus.shared.unsubscribe(id: id)
             eventSubscriptionId = nil
-            logger.info("Memory service stopped listening")
         }
     }
 
     // MARK: - Extraction
 
     private func handleTranscription(_ payload: TranscriptionCompletedPayload) {
-        guard isEnabled else { return }
-        guard payload.finalText.count >= minimumTextLength else { return }
+        guard isEnabled, payload.finalText.count >= minimumTextLength else { return }
 
-        // Check if the active profile has memory enabled
+        // Per-profile gate
         if let profileName = payload.profileName,
            let profile = ServiceContainer.shared.profileService.profiles.first(where: { $0.name == profileName }) {
-            guard profile.memoryEnabled else {
-                logger.debug("Memory disabled for profile '\(profileName)', skipping extraction")
-                return
-            }
+            guard profile.memoryEnabled else { return }
         } else {
-            // No profile matched - skip extraction (memory is per-profile only)
             return
         }
 
-        // Cooldown - don't call LLM too frequently
+        // Cooldown
         let now = Date()
-        guard now.timeIntervalSince(lastExtractionTime) >= extractionCooldown else {
-            logger.debug("Memory extraction cooldown active, skipping")
-            return
-        }
+        guard now.timeIntervalSince(lastExtractionTime) >= extractionCooldown else { return }
         lastExtractionTime = now
 
         let providerId = extractionProviderId
-        guard !providerId.isEmpty else {
-            logger.debug("No extraction provider configured, skipping memory extraction")
-            return
-        }
+        guard !providerId.isEmpty else { return }
+
+        // Capture all MainActor properties before detaching
+        let prompt = extractionPrompt
+        let model = extractionModel
 
         Task.detached { [weak self] in
+            guard let self else { return }
             do {
-                try await self?.extractAndStore(payload: payload, providerId: providerId)
+                try await self.extractAndStore(payload: payload, providerId: providerId, prompt: prompt, model: model)
             } catch {
                 logger.error("Memory extraction failed: \(error.localizedDescription)")
             }
         }
     }
 
-    private func extractAndStore(payload: TranscriptionCompletedPayload, providerId: String) async throws {
-        let extractedEntries = try await extractMemories(from: payload, providerId: providerId)
-        guard !extractedEntries.isEmpty else { return }
-
-        let plugins = await MainActor.run { PluginManager.shared.memoryStoragePlugins }
-        guard !plugins.isEmpty else {
-            logger.debug("No memory storage plugins active")
-            return
-        }
-
-        // Deduplicate against existing memories
-        let deduplicatedEntries = await deduplicate(entries: extractedEntries, using: plugins)
-        guard !deduplicatedEntries.isEmpty else {
-            logger.debug("All extracted memories were duplicates")
-            return
-        }
-
-        // Store in all active plugins
-        for plugin in plugins where plugin.isReady {
-            do {
-                try await plugin.store(deduplicatedEntries)
-                logger.info("Stored \(deduplicatedEntries.count) memories in \(plugin.storageName)")
-            } catch {
-                logger.error("Failed to store memories in \(plugin.storageName): \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func extractMemories(from payload: TranscriptionCompletedPayload, providerId: String) async throws -> [MemoryEntry] {
-        let systemPrompt = await MainActor.run { extractionPrompt }
-
-        let model = await MainActor.run { extractionModel }
+    private func extractAndStore(payload: TranscriptionCompletedPayload, providerId: String, prompt: String, model: String) async throws {
         let result = try await promptProcessingService.process(
-            prompt: systemPrompt,
+            prompt: prompt,
             text: payload.finalText,
             providerOverride: providerId,
             cloudModelOverride: model.isEmpty ? nil : model,
             skipMemoryInjection: true
         )
 
-        return parseExtractedMemories(result, source: MemorySource(
+        let entries = parseExtractedMemories(result, source: MemorySource(
             appName: payload.appName,
             bundleIdentifier: payload.bundleIdentifier,
             profileName: payload.profileName,
             timestamp: payload.timestamp
         ))
+        guard !entries.isEmpty else { return }
+
+        let plugins = await MainActor.run { PluginManager.shared.memoryStoragePlugins }
+        guard !plugins.isEmpty else { return }
+
+        let deduped = await deduplicate(entries: entries, using: plugins)
+        guard !deduped.isEmpty else { return }
+
+        for plugin in plugins where plugin.isReady {
+            try? await plugin.store(deduped)
+            logger.info("Stored \(deduped.count) memories in \(plugin.storageName)")
+        }
     }
 
     private func parseExtractedMemories(_ json: String, source: MemorySource) -> [MemoryEntry] {
-        // Extract JSON array from response (handle potential markdown wrapping)
         let cleaned = json
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let data = cleaned.data(using: .utf8) else { return [] }
 
         struct RawMemory: Codable {
             let content: String
@@ -188,22 +154,14 @@ final class MemoryService: ObservableObject {
             let confidence: Double?
         }
 
-        guard let rawMemories = try? JSONDecoder().decode([RawMemory].self, from: data) else {
-            logger.warning("Failed to parse memory extraction response")
-            return []
-        }
+        guard let data = cleaned.data(using: .utf8),
+              let raw = try? JSONDecoder().decode([RawMemory].self, from: data) else { return [] }
 
-        return rawMemories.compactMap { raw in
-            guard let type = MemoryType(rawValue: raw.type) else { return nil }
-            let confidence = raw.confidence ?? 0.8
-            // Only store high-confidence memories
-            guard confidence >= 0.8 else { return nil }
-            return MemoryEntry(
-                content: raw.content,
-                type: type,
-                source: source,
-                confidence: raw.confidence ?? 0.8
-            )
+        return raw.compactMap { item in
+            guard let type = MemoryType(rawValue: item.type) else { return nil }
+            let conf = item.confidence ?? 0.8
+            guard conf >= 0.8 else { return nil }
+            return MemoryEntry(content: item.content, type: type, source: source, confidence: conf)
         }
     }
 
@@ -211,7 +169,6 @@ final class MemoryService: ObservableObject {
 
     private func deduplicate(entries: [MemoryEntry], using plugins: [MemoryStoragePlugin]) async -> [MemoryEntry] {
         var unique: [MemoryEntry] = []
-
         for entry in entries {
             let query = MemoryQuery(text: entry.content, maxResults: 1, minConfidence: 0.0)
             var isDuplicate = false
@@ -220,7 +177,6 @@ final class MemoryService: ObservableObject {
                 if let results = try? await plugin.search(query),
                    let best = results.first,
                    best.relevanceScore > 0.85 {
-                    // Update existing memory instead of creating a duplicate
                     var updated = best.entry
                     updated.lastAccessedAt = Date()
                     updated.accessCount += 1
@@ -229,12 +185,8 @@ final class MemoryService: ObservableObject {
                     break
                 }
             }
-
-            if !isDuplicate {
-                unique.append(entry)
-            }
+            if !isDuplicate { unique.append(entry) }
         }
-
         return unique
     }
 
@@ -247,54 +199,33 @@ final class MemoryService: ObservableObject {
         guard !plugins.isEmpty else { return "" }
 
         let query = MemoryQuery(text: text, maxResults: 10, minConfidence: 0.3)
-        var allResults: [MemorySearchResult] = []
 
+        // Collect results with their source plugin for targeted updates
+        var pluginResults: [(plugin: MemoryStoragePlugin, result: MemorySearchResult)] = []
         for plugin in plugins where plugin.isReady {
-            do {
-                let results = try await plugin.search(query)
-                allResults.append(contentsOf: results)
-            } catch {
-                logger.error("Memory search failed for \(plugin.storageName): \(error.localizedDescription)")
+            if let results = try? await plugin.search(query) {
+                for r in results { pluginResults.append((plugin, r)) }
             }
         }
+        guard !pluginResults.isEmpty else { return "" }
 
-        guard !allResults.isEmpty else { return "" }
+        // Deduplicate by content, keep highest relevance
+        var seen = Set<String>()
+        let unique = pluginResults
+            .sorted { $0.result.relevanceScore > $1.result.relevanceScore }
+            .filter { seen.insert($0.result.entry.content.lowercased()).inserted }
 
-        // Deduplicate across plugins by content similarity, sort by relevance
-        let deduplicated = deduplicateResults(allResults)
-        let sorted = deduplicated.sorted { $0.relevanceScore > $1.relevanceScore }
-        let top = Array(sorted.prefix(10))
+        let top = Array(unique.prefix(10))
 
-        // Update access timestamps
-        for result in top {
-            var updated = result.entry
+        // Update access timestamps only in the originating plugin
+        for item in top {
+            var updated = item.result.entry
             updated.lastAccessedAt = Date()
             updated.accessCount += 1
-            for plugin in plugins where plugin.isReady {
-                try? await plugin.update(updated)
-            }
+            try? await item.plugin.update(updated)
         }
 
-        return formatMemoriesForPrompt(top)
-    }
-
-    private func deduplicateResults(_ results: [MemorySearchResult]) -> [MemorySearchResult] {
-        var seen = Set<String>()
-        var unique: [MemorySearchResult] = []
-
-        for result in results.sorted(by: { $0.relevanceScore > $1.relevanceScore }) {
-            let normalized = result.entry.content.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-            if !seen.contains(normalized) {
-                seen.insert(normalized)
-                unique.append(result)
-            }
-        }
-
-        return unique
-    }
-
-    private func formatMemoriesForPrompt(_ results: [MemorySearchResult]) -> String {
-        let lines = results.map { "- \($0.entry.content)" }
+        let lines = top.map { "- \($0.result.entry.content)" }
         return """
         <memory_context>
         The following is known about the user from previous interactions:
@@ -311,28 +242,20 @@ final class MemoryService: ObservableObject {
         let plugins = PluginManager.shared.memoryStoragePlugins
         guard !plugins.isEmpty else { return }
 
-        let entries = corrections.map { correction in
+        let entries = corrections.map {
             MemoryEntry(
-                content: "\(correction.replacement) (not \(correction.original))",
+                content: "\($0.replacement) (not \($0.original))",
                 type: .correction,
-                source: MemorySource(
-                    appName: appName,
-                    bundleIdentifier: bundleIdentifier
-                ),
+                source: MemorySource(appName: appName, bundleIdentifier: bundleIdentifier),
                 confidence: 1.0
             )
         }
-
         guard !entries.isEmpty else { return }
 
-        Task.detached { [entries] in
+        Task.detached {
             for plugin in plugins where plugin.isReady {
-                do {
-                    try await plugin.store(entries)
-                    logger.info("Stored \(entries.count) correction(s) in \(plugin.storageName)")
-                } catch {
-                    logger.error("Failed to store corrections in \(plugin.storageName): \(error.localizedDescription)")
-                }
+                try? await plugin.store(entries)
+                logger.info("Stored \(entries.count) correction(s) in \(plugin.storageName)")
             }
         }
     }
@@ -340,14 +263,9 @@ final class MemoryService: ObservableObject {
     // MARK: - Management
 
     func clearAllMemories() async {
-        let plugins = PluginManager.shared.memoryStoragePlugins
-        for plugin in plugins {
-            do {
-                try await plugin.deleteAll()
-                logger.info("Cleared all memories in \(plugin.storageName)")
-            } catch {
-                logger.error("Failed to clear memories in \(plugin.storageName): \(error.localizedDescription)")
-            }
+        for plugin in PluginManager.shared.memoryStoragePlugins {
+            try? await plugin.deleteAll()
+            logger.info("Cleared all memories in \(plugin.storageName)")
         }
     }
 }
