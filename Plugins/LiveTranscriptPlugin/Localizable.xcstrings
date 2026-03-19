@@ -11,6 +11,16 @@
         }
       }
     },
+    "New text" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Text"
+          }
+        }
+      }
+    },
     "Font size" : {
       "localizations" : {
         "de" : {

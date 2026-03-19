@@ -24,7 +24,6 @@ final class LiveTranscriptPlugin: NSObject, TypeWhisperPlugin, @unchecked Sendab
 
     fileprivate var _autoOpen: Bool = true
     fileprivate var _fontSize: Double = 14.0
-    private let pauseThreshold: Double = 2.0
     private let autoCloseDelay: Double = 4.0
 
     fileprivate var toggleHotkey: PluginHotkey?
@@ -81,7 +80,7 @@ final class LiveTranscriptPlugin: NSObject, TypeWhisperPlugin, @unchecked Sendab
             viewModel?.reset()
 
         case .partialTranscriptionUpdate(let payload):
-            viewModel?.updateText(payload.text, pauseThreshold: pauseThreshold)
+            viewModel?.updateText(payload.text, isFinal: payload.isFinal)
             if payload.isFinal { scheduleAutoClose() }
 
         case .recordingStopped:
@@ -220,56 +219,171 @@ final class LiveTranscriptPlugin: NSObject, TypeWhisperPlugin, @unchecked Sendab
 @MainActor
 final class LiveTranscriptViewModel: ObservableObject {
     @Published var paragraphs: [TranscriptParagraph] = []
+    @Published var isAutoScrollEnabled: Bool = true
 
     private var previousFullText: String = ""
-    private var lastTextChangeTimestamp: Date = Date()
+    private var recentTexts: [String] = []
+    private let sentencesPerParagraph: Int = 3
 
     struct TranscriptParagraph: Identifiable {
-        let id = UUID()
+        let id: UUID
         var text: String
+
+        init(id: UUID = UUID(), text: String) {
+            self.id = id
+            self.text = text
+        }
     }
 
     func reset() {
         paragraphs = []
         previousFullText = ""
-        lastTextChangeTimestamp = Date()
+        recentTexts = []
+        isAutoScrollEnabled = true
     }
 
-    func updateText(_ fullText: String, pauseThreshold: Double) {
-        let now = Date()
-        let timeSinceLastChange = now.timeIntervalSince(lastTextChangeTimestamp)
+    func scrollToBottom() {
+        isAutoScrollEnabled = true
+    }
 
-        guard fullText != previousFullText else { return }
+    func updateText(_ fullText: String, isFinal: Bool) {
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
 
-        if fullText.hasPrefix(previousFullText) {
-            let newContent = String(fullText.dropFirst(previousFullText.count))
-                .trimmingCharacters(in: .whitespaces)
-            guard !newContent.isEmpty else {
-                previousFullText = fullText
-                return
-            }
+        // Ring buffer dedup: ignore exact duplicates
+        if recentTexts.contains(trimmed) { return }
 
-            if timeSinceLastChange >= pauseThreshold && !paragraphs.isEmpty {
-                paragraphs.append(TranscriptParagraph(text: newContent))
-            } else if !paragraphs.isEmpty {
-                paragraphs[paragraphs.count - 1].text += " " + newContent
-            } else {
-                paragraphs.append(TranscriptParagraph(text: newContent))
-            }
-        } else if paragraphs.isEmpty {
-            paragraphs.append(TranscriptParagraph(text: fullText.trimmingCharacters(in: .whitespaces)))
-        } else {
-            let stableText = paragraphs.dropLast().map(\.text).joined(separator: " ")
-            if fullText.hasPrefix(stableText) {
-                paragraphs[paragraphs.count - 1].text = String(fullText.dropFirst(stableText.count))
-                    .trimmingCharacters(in: .whitespaces)
-            } else {
-                paragraphs = [TranscriptParagraph(text: fullText.trimmingCharacters(in: .whitespaces))]
+        // Substring dedup: ignore if new text is a substring of previous (engine reset)
+        if !previousFullText.isEmpty && previousFullText.contains(trimmed) && trimmed.count < previousFullText.count {
+            return
+        }
+
+        // Remove engine hallucination: consecutive similar sentences
+        let cleaned = removeConsecutiveDuplicateSentences(trimmed)
+
+        recentTexts.append(cleaned)
+        if recentTexts.count > 3 { recentTexts.removeFirst() }
+
+        // Split full text at sentence boundaries
+        var newTexts = splitAtSentenceBoundaries(cleaned, sentencesPerParagraph: sentencesPerParagraph)
+        if newTexts.isEmpty { newTexts = [cleaned] }
+
+        paragraphs = reconcileParagraphs(old: paragraphs, new: newTexts)
+
+        previousFullText = cleaned
+    }
+
+    // MARK: - Helpers
+
+    private func removeConsecutiveDuplicateSentences(_ text: String) -> String {
+        let sentences = splitIntoSentences(text)
+        guard sentences.count >= 2 else { return text }
+
+        var result: [String] = [sentences[0]]
+        for i in 1..<sentences.count {
+            let isDuplicate = result.contains { isSimilarSentence($0, sentences[i]) }
+            if !isDuplicate {
+                result.append(sentences[i])
             }
         }
 
-        lastTextChangeTimestamp = now
-        previousFullText = fullText
+        return result.joined(separator: " ")
+    }
+
+    private func splitIntoSentences(_ text: String) -> [String] {
+        var sentences: [String] = []
+        var currentStart = text.startIndex
+        var i = text.startIndex
+
+        while i < text.endIndex {
+            if text[i] == "." || text[i] == "!" || text[i] == "?" {
+                let sentenceEnd = text.index(after: i)
+                let sentence = String(text[currentStart..<sentenceEnd]).trimmingCharacters(in: .whitespaces)
+                if !sentence.isEmpty { sentences.append(sentence) }
+                currentStart = sentenceEnd
+            }
+            i = text.index(after: i)
+        }
+
+        if currentStart < text.endIndex {
+            let remaining = String(text[currentStart...]).trimmingCharacters(in: .whitespaces)
+            if !remaining.isEmpty { sentences.append(remaining) }
+        }
+
+        return sentences
+    }
+
+    private func isSimilarSentence(_ a: String, _ b: String) -> Bool {
+        let aWords = Set(a.lowercased().split(separator: " ").map {
+            $0.trimmingCharacters(in: .punctuationCharacters)
+        }.filter { !$0.isEmpty })
+        let bWords = Set(b.lowercased().split(separator: " ").map {
+            $0.trimmingCharacters(in: .punctuationCharacters)
+        }.filter { !$0.isEmpty })
+
+        guard aWords.count >= 2 && bWords.count >= 2 else { return false }
+
+        let intersection = aWords.intersection(bWords)
+        let similarity = Double(intersection.count) / Double(max(aWords.count, bWords.count))
+        return similarity >= 0.7
+    }
+
+    private func commonPrefixLength(_ a: String, _ b: String) -> Int {
+        var count = 0
+        for (ca, cb) in zip(a, b) {
+            if ca != cb { break }
+            count += 1
+        }
+        return count
+    }
+
+    private func splitAtSentenceBoundaries(_ text: String, sentencesPerParagraph: Int) -> [String] {
+        var result: [String] = []
+        var currentStart = text.startIndex
+        var sentenceCount = 0
+        var i = text.startIndex
+
+        while i < text.endIndex {
+            let char = text[i]
+            if char == "." || char == "!" || char == "?" {
+                let nextIndex = text.index(after: i)
+                let isEnd = nextIndex == text.endIndex
+                let isFollowedBySpace = !isEnd && text[nextIndex].isWhitespace
+
+                if isEnd || isFollowedBySpace {
+                    sentenceCount += 1
+                    if sentenceCount >= sentencesPerParagraph {
+                        let endIdx = isFollowedBySpace ? nextIndex : text.endIndex
+                        let para = String(text[currentStart..<endIdx]).trimmingCharacters(in: .whitespaces)
+                        if !para.isEmpty { result.append(para) }
+                        currentStart = isFollowedBySpace ? nextIndex : text.endIndex
+                        sentenceCount = 0
+                    }
+                }
+            }
+            i = text.index(after: i)
+        }
+
+        if currentStart < text.endIndex {
+            let remaining = String(text[currentStart...]).trimmingCharacters(in: .whitespaces)
+            if !remaining.isEmpty { result.append(remaining) }
+        }
+
+        return result
+    }
+
+    private func reconcileParagraphs(old: [TranscriptParagraph], new: [String]) -> [TranscriptParagraph] {
+        var result: [TranscriptParagraph] = []
+        for (index, text) in new.enumerated() {
+            if index < old.count && old[index].text == text {
+                result.append(old[index])
+            } else if index < old.count {
+                result.append(TranscriptParagraph(id: old[index].id, text: text))
+            } else {
+                result.append(TranscriptParagraph(text: text))
+            }
+        }
+        return result
     }
 }
 
@@ -279,7 +393,7 @@ final class LiveTranscriptPanel: NSPanel {
     init(viewModel: LiveTranscriptViewModel, fontSize: Double) {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 320),
-            styleMask: [.titled, .resizable, .nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.resizable, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -314,6 +428,7 @@ final class LiveTranscriptPanel: NSPanel {
 struct LiveTranscriptView: View {
     @ObservedObject var viewModel: LiveTranscriptViewModel
     let fontSize: Double
+    private let bundle = Bundle(for: LiveTranscriptPlugin.self)
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -323,6 +438,9 @@ struct LiveTranscriptView: View {
                         Text(paragraph.text)
                             .font(.system(size: CGFloat(fontSize)))
                             .foregroundStyle(.white.opacity(0.85))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                             .id(paragraph.id)
                     }
 
@@ -331,15 +449,46 @@ struct LiveTranscriptView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 28)
                 .padding(.bottom, 12)
+                .background(
+                    ScrollWheelDetector {
+                        viewModel.isAutoScrollEnabled = false
+                    }
+                )
             }
             .onChange(of: viewModel.paragraphs.last?.text) {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
+                if viewModel.isAutoScrollEnabled {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
                 }
             }
             .onChange(of: viewModel.paragraphs.count) {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
+                if viewModel.isAutoScrollEnabled {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !viewModel.isAutoScrollEnabled {
+                    Button {
+                        viewModel.scrollToBottom()
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text("New text", bundle: bundle)
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
                 }
             }
         }
@@ -348,6 +497,48 @@ struct LiveTranscriptView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.black.opacity(0.92))
         )
+    }
+}
+
+// MARK: - Scroll Wheel Detector
+
+private struct ScrollWheelDetector: NSViewRepresentable {
+    let onScrollUp: () -> Void
+
+    func makeNSView(context: Context) -> ScrollWheelDetectorView {
+        ScrollWheelDetectorView(onScrollUp: onScrollUp)
+    }
+
+    func updateNSView(_ nsView: ScrollWheelDetectorView, context: Context) {
+        nsView.onScrollUp = onScrollUp
+    }
+
+    final class ScrollWheelDetectorView: NSView {
+        var onScrollUp: (() -> Void)?
+        private var monitor: Any?
+
+        init(onScrollUp: (() -> Void)?) {
+            self.onScrollUp = onScrollUp
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self, event.window === self.window else { return event }
+                if event.scrollingDeltaY > 0 {
+                    self.onScrollUp?()
+                }
+                return event
+            }
+        }
     }
 }
 
