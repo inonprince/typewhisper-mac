@@ -46,6 +46,8 @@ final class MemoryService: ObservableObject {
 
     private let promptProcessingService: PromptProcessingService
     private var eventSubscriptionId: UUID?
+    private var lastExtractionTime: Date = .distantPast
+    private let extractionCooldown: TimeInterval = 30 // seconds between LLM calls
 
     init(promptProcessingService: PromptProcessingService) {
         self.promptProcessingService = promptProcessingService
@@ -100,6 +102,14 @@ final class MemoryService: ObservableObject {
             return
         }
 
+        // Cooldown - don't call LLM too frequently
+        let now = Date()
+        guard now.timeIntervalSince(lastExtractionTime) >= extractionCooldown else {
+            logger.debug("Memory extraction cooldown active, skipping")
+            return
+        }
+        lastExtractionTime = now
+
         let providerId = extractionProviderId
         guard !providerId.isEmpty else {
             logger.debug("No extraction provider configured, skipping memory extraction")
@@ -151,7 +161,8 @@ final class MemoryService: ObservableObject {
             prompt: systemPrompt,
             text: payload.finalText,
             providerOverride: providerId,
-            cloudModelOverride: model.isEmpty ? nil : model
+            cloudModelOverride: model.isEmpty ? nil : model,
+            skipMemoryInjection: true
         )
 
         return parseExtractedMemories(result, source: MemorySource(

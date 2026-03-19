@@ -105,10 +105,10 @@ class PromptProcessingService: ObservableObject {
         }
     }
 
-    func process(prompt: String, text: String, providerOverride: String? = nil, cloudModelOverride: String? = nil) async throws -> String {
+    func process(prompt: String, text: String, providerOverride: String? = nil, cloudModelOverride: String? = nil, skipMemoryInjection: Bool = false) async throws -> String {
         // Inject memory context into prompt if available
         var effectivePrompt = prompt
-        if let memoryService {
+        if !skipMemoryInjection, let memoryService {
             let memoryContext = await memoryService.retrieveRelevantMemories(for: text)
             if !memoryContext.isEmpty {
                 effectivePrompt = memoryContext + "\n\n" + prompt
