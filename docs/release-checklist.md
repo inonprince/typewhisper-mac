@@ -10,23 +10,33 @@
 
 ## RC Smoke-Checks
 
-- Publish `1.0.0-rc*` on the `release-candidate` channel and daily builds on the `daily` channel
+- Publish `1.1.0-rc*` on the `release-candidate` channel and daily builds on the `daily` channel
 - Stable builds must use only the default channel
 - Fresh install
 - Permission recovery
 - First dictation
 - File transcription
 - Prompt action
+- Prompt wizard step (cross-tab navigation)
+- Prompt drag-and-drop reordering
 - History edit/export
+- Post-processing transparency in history and indicators
 - Profile matching
 - Plugin enable/disable
+- Community term pack download and apply
+- App audio recording with separate tracks
+- Google Cloud Speech-to-Text plugin
+- Sound feedback settings (enable/disable/change sounds)
+- Non-blocking model download
+- Dictionary JSON export and import
+- Parakeet V2/V3 model version selection
 - Verify CLI and HTTP API locally
-- Upgrade from `0.14.x`
+- Upgrade from `1.0.0`
 
-## Before `1.0.0`
+## Before `1.1.0`
 
-- Observe `1.0.0-rc1` on real machines for multiple days
+- Observe `1.1.0-rc1` on real machines for multiple days
 - No open P0/P1 bugs in the core workflow
 - Update release notes
 - RC and daily tags must not update Homebrew
-- Verify DMG, appcast, and Homebrew update only at the final `1.0.0`
+- Verify DMG, appcast, and Homebrew update only at the final `1.1.0`
