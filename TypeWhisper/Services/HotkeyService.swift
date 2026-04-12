@@ -123,6 +123,8 @@ final class HotkeyService: ObservableObject {
     private static let toggleThreshold: TimeInterval = 1.0
     private static let doubleTapThreshold: TimeInterval = 0.4
     private static let monitorDedupWindow: TimeInterval = 0.12
+    private static let capsLockKeyCode: UInt16 = 0x39
+    private static let capsLockSuppressionWindow: TimeInterval = 0.25
 
     // MARK: - Per-Slot State
 
@@ -136,6 +138,16 @@ final class HotkeyService: ObservableObject {
         // Double-tap tracking
         var lastTapUpTime: Date?
         var tapCount: Int = 0 // 0=idle, 1=first tap released, 2=second tap active
+
+        mutating func resetTransientState() {
+            fnWasDown = false
+            fnComboKeyPressed = false
+            modifierWasDown = false
+            keyWasDown = false
+            mouseButtonWasDown = false
+            lastTapUpTime = nil
+            tapCount = 0
+        }
     }
 
     private var slots: [HotkeySlotType: SlotState] = [
@@ -158,6 +170,16 @@ final class HotkeyService: ObservableObject {
         // Double-tap tracking
         var lastTapUpTime: Date?
         var tapCount: Int = 0
+
+        mutating func resetTransientState() {
+            fnWasDown = false
+            fnComboKeyPressed = false
+            modifierWasDown = false
+            keyWasDown = false
+            mouseButtonWasDown = false
+            lastTapUpTime = nil
+            tapCount = 0
+        }
     }
 
     private var profileSlots: [UUID: ProfileHotkeyState] = [:]
@@ -167,6 +189,7 @@ final class HotkeyService: ObservableObject {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var recentEventTapDispatches: [HotkeyDispatchKey: Date] = [:]
+    private var capsLockOriginSuppressionUntil: Date?
 
     private let logger = Logger(subsystem: AppConstants.loggerSubsystem, category: "HotkeyService")
 
@@ -338,6 +361,7 @@ final class HotkeyService: ObservableObject {
             runLoopSource = nil
         }
         recentEventTapDispatches.removeAll()
+        capsLockOriginSuppressionUntil = nil
     }
 
     func suspendMonitoring() {
@@ -431,11 +455,17 @@ final class HotkeyService: ObservableObject {
             return false
         }
 
+        updateCapsLockOriginTracker(for: event)
         var shouldSuppress = false
 
         // Global slots
         for slotType in HotkeySlotType.allCases {
             guard var state = slots[slotType], let hotkey = state.hotkey else { continue }
+            if shouldSuppressForCapsLockOrigin(event, hotkey: hotkey, keyWasDown: state.keyWasDown) {
+                state.resetTransientState()
+                slots[slotType] = state
+                continue
+            }
             let (keyDown, keyUp, isMatch) = processKeyEvent(event, hotkey: hotkey, state: &state)
             slots[slotType] = state
             if isMatch { shouldSuppress = true }
@@ -451,6 +481,11 @@ final class HotkeyService: ObservableObject {
         // Profile slots
         for profileId in Array(profileSlots.keys) {
             guard var pState = profileSlots[profileId] else { continue }
+            if shouldSuppressForCapsLockOrigin(event, hotkey: pState.hotkey, keyWasDown: pState.keyWasDown) {
+                pState.resetTransientState()
+                profileSlots[profileId] = pState
+                continue
+            }
             var state = SlotState(hotkey: pState.hotkey, fnWasDown: pState.fnWasDown,
                                   fnComboKeyPressed: pState.fnComboKeyPressed,
                                   modifierWasDown: pState.modifierWasDown, keyWasDown: pState.keyWasDown,
@@ -476,6 +511,42 @@ final class HotkeyService: ObservableObject {
         }
 
         return shouldSuppress
+    }
+
+    private func updateCapsLockOriginTracker(for event: NSEvent) {
+        let now = Date()
+        if let until = capsLockOriginSuppressionUntil, now >= until {
+            capsLockOriginSuppressionUntil = nil
+        }
+
+        guard event.type == .flagsChanged, event.keyCode == Self.capsLockKeyCode else { return }
+        capsLockOriginSuppressionUntil = now.addingTimeInterval(Self.capsLockSuppressionWindow)
+    }
+
+    private func shouldSuppressForCapsLockOrigin(
+        _ event: NSEvent,
+        hotkey: UnifiedHotkey,
+        keyWasDown: Bool
+    ) -> Bool {
+        guard let until = capsLockOriginSuppressionUntil, Date() < until else {
+            capsLockOriginSuppressionUntil = nil
+            return false
+        }
+
+        switch hotkey.kind {
+        case .modifierCombo:
+            return event.type == .flagsChanged
+        case .keyWithModifiers:
+            if event.type == .keyDown || event.type == .keyUp {
+                return event.keyCode == hotkey.keyCode
+            }
+            if event.type == .flagsChanged {
+                return keyWasDown || event.keyCode == Self.capsLockKeyCode
+            }
+            return false
+        case .fn, .modifierOnly, .bareKey, .mouseButton:
+            return false
+        }
     }
 
     private func dispatchGlobalMatch(
