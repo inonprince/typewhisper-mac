@@ -813,6 +813,104 @@ final class HotkeyServiceCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testCapsLockOriginSuppressesModifierComboHotkey() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        service.setHotkeyForTesting(commandOptionComboHotkey(), for: .toggle)
+
+        var startCount = 0
+        service.onDictationStart = {
+            startCount += 1
+        }
+
+        let capsLockEvent = try makeFlagsChangedEvent(keyCode: 0x39, modifierFlags: [.capsLock])
+        let comboEvent = try makeFlagsChangedEvent(keyCode: 0x3D, modifierFlags: [.command, .option])
+
+        XCTAssertFalse(service.processEventForTesting(capsLockEvent, source: .monitor))
+        XCTAssertFalse(service.processEventForTesting(comboEvent, source: .monitor))
+        XCTAssertEqual(startCount, 0)
+    }
+
+    @MainActor
+    func testCapsLockOriginSuppressesKeyWithModifiersHotkey() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        service.setHotkeyForTesting(commandOptionAHotkey(), for: .toggle)
+
+        var startCount = 0
+        service.onDictationStart = {
+            startCount += 1
+        }
+
+        let capsLockEvent = try makeFlagsChangedEvent(keyCode: 0x39, modifierFlags: [.capsLock])
+        let keyDown = try makeKeyboardEvent(keyCode: 0x00, keyDown: true, flags: [.maskCommand, .maskAlternate])
+        let keyUp = try makeKeyboardEvent(keyCode: 0x00, keyDown: false, flags: [.maskCommand, .maskAlternate])
+
+        XCTAssertFalse(service.processEventForTesting(capsLockEvent, source: .monitor))
+        XCTAssertFalse(service.processEventForTesting(keyDown, source: .monitor))
+        XCTAssertFalse(service.processEventForTesting(keyUp, source: .monitor))
+        XCTAssertEqual(startCount, 0)
+    }
+
+    @MainActor
+    func testModifierComboStillWorksWithoutCapsLockOrigin() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        service.setHotkeyForTesting(commandOptionComboHotkey(), for: .toggle)
+
+        var startCount = 0
+        service.onDictationStart = {
+            startCount += 1
+        }
+
+        let comboEvent = try makeFlagsChangedEvent(keyCode: 0x3D, modifierFlags: [.command, .option])
+
+        XCTAssertTrue(service.processEventForTesting(comboEvent, source: .monitor))
+        XCTAssertEqual(startCount, 1)
+    }
+
+    @MainActor
+    func testKeyWithModifiersStillWorksWithoutCapsLockOrigin() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        service.setHotkeyForTesting(commandOptionAHotkey(), for: .toggle)
+
+        var startCount = 0
+        service.onDictationStart = {
+            startCount += 1
+        }
+
+        let keyDown = try makeKeyboardEvent(keyCode: 0x00, keyDown: true, flags: [.maskCommand, .maskAlternate])
+
+        XCTAssertTrue(service.processEventForTesting(keyDown, source: .monitor))
+        XCTAssertEqual(startCount, 1)
+    }
+
+    @MainActor
+    func testBareKeyHotkeyRemainsAllowedAfterCapsLockOrigin() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        service.setHotkeyForTesting(bareSpaceHotkey(), for: .toggle)
+
+        var startCount = 0
+        service.onDictationStart = {
+            startCount += 1
+        }
+
+        let capsLockEvent = try makeFlagsChangedEvent(keyCode: 0x39, modifierFlags: [.capsLock])
+        let keyDown = try makeKeyboardEvent(keyCode: 0x31, keyDown: true, flags: [])
+
+        XCTAssertFalse(service.processEventForTesting(capsLockEvent, source: .monitor))
+        XCTAssertTrue(service.processEventForTesting(keyDown, source: .monitor))
+        XCTAssertEqual(startCount, 1)
+    }
+
+    @MainActor
     private func spaceHotkey() -> UnifiedHotkey {
         UnifiedHotkey(
             keyCode: 0x31,
@@ -821,12 +919,62 @@ final class HotkeyServiceCompatibilityTests: XCTestCase {
         )
     }
 
-    private func makeKeyboardEvent(keyCode: UInt16, keyDown: Bool) throws -> NSEvent {
-        let flags: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
+    @MainActor
+    private func commandOptionComboHotkey() -> UnifiedHotkey {
+        UnifiedHotkey(
+            keyCode: UnifiedHotkey.modifierComboKeyCode,
+            modifierFlags: NSEvent.ModifierFlags([.command, .option]).rawValue,
+            isFn: false
+        )
+    }
+
+    @MainActor
+    private func commandOptionAHotkey() -> UnifiedHotkey {
+        UnifiedHotkey(
+            keyCode: 0x00,
+            modifierFlags: NSEvent.ModifierFlags([.command, .option]).rawValue,
+            isFn: false
+        )
+    }
+
+    @MainActor
+    private func bareSpaceHotkey() -> UnifiedHotkey {
+        UnifiedHotkey(
+            keyCode: 0x31,
+            modifierFlags: 0,
+            isFn: false
+        )
+    }
+
+    private func makeKeyboardEvent(
+        keyCode: UInt16,
+        keyDown: Bool,
+        flags: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
+    ) throws -> NSEvent {
         let event = try XCTUnwrap(
             CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(keyCode), keyDown: keyDown)
         )
         event.flags = flags
         return try XCTUnwrap(NSEvent(cgEvent: event))
+    }
+
+    private func makeFlagsChangedEvent(
+        keyCode: UInt16,
+        modifierFlags: NSEvent.ModifierFlags
+    ) throws -> NSEvent {
+        try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .flagsChanged,
+                location: .zero,
+                modifierFlags: modifierFlags,
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: 0,
+                context: nil,
+                characters: "",
+                charactersIgnoringModifiers: "",
+                isARepeat: false,
+                keyCode: keyCode
+            )
+        )
     }
 }
