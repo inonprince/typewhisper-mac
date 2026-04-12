@@ -211,7 +211,7 @@ final class PluginManager: ObservableObject {
                 className: manifest.principalClass,
                 bundleName: url.lastPathComponent
             )
-            logger.error(error.localizedDescription)
+            logger.error("\(error.localizedDescription, privacy: .public)")
             throw error
         }
 
