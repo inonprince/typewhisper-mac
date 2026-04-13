@@ -111,7 +111,7 @@ brew install --cask typewhisper/tap/typewhisper
 
 Download the latest DMG from [GitHub Releases](https://github.com/TypeWhisper/typewhisper-mac/releases/latest).
 
-Stable direct-download releases use the default Sparkle channel. Release candidates such as `1.2.0-rc1` and daily builds are published as GitHub prereleases, update the shared Sparkle appcast on their own channels, and are excluded from Homebrew.
+Stable direct-download releases use the default Sparkle channel. Release candidates such as `1.2.0-rc*` and daily builds are published as GitHub prereleases, update the shared Sparkle appcast on their own channels, and are excluded from Homebrew.
 Installed builds can switch channels in `Settings -> About` via the `Update Channel` picker.
 
 ## Quick Start
@@ -246,14 +246,17 @@ curl -X PUT "http://localhost:8978/v1/rules/toggle?id=<uuid>"
 ### Dictation Control
 
 ```bash
-# Start dictation
+# Start dictation (returns session id)
 curl -X POST http://localhost:8978/v1/dictation/start
 
-# Stop dictation
+# Stop dictation (returns same session id)
 curl -X POST http://localhost:8978/v1/dictation/stop
 
-# Check dictation status
+# Check whether dictation is currently recording
 curl http://localhost:8978/v1/dictation/status
+
+# Fetch status/result for a specific dictation session
+curl "http://localhost:8978/v1/dictation/transcription?id=<uuid>"
 ```
 
 ## CLI Tool

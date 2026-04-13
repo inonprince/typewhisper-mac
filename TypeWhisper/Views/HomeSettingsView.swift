@@ -211,7 +211,7 @@ struct HomeSettingsView: View {
                     .overlay(alignment: .topLeading) {
                         if let hoveredDate, let point = viewModel.chartData.first(where: { Calendar.current.isDate($0.date, inSameDayAs: hoveredDate) }), point.wordCount > 0 {
                             VStack(spacing: 2) {
-                                Text("\(point.wordCount)")
+                                Text("\(point.wordCount) \(String(localized: "words"))")
                                     .font(.caption.bold())
                                     .monospacedDigit()
                                 Text(point.date.formatted(.dateTime.month(.abbreviated).day()))

@@ -62,12 +62,26 @@ final class APIRouterAndHandlersTests: XCTestCase {
         let router: APIRouter
         let historyService: HistoryService
         let profileService: ProfileService
+        let dictationViewModel: DictationViewModel
+        let audioRecordingService: AudioRecordingService
+        let textInsertionService: TextInsertionService
         private let retainedObjects: [AnyObject]
 
-        init(router: APIRouter, historyService: HistoryService, profileService: ProfileService, retainedObjects: [AnyObject]) {
+        init(
+            router: APIRouter,
+            historyService: HistoryService,
+            profileService: ProfileService,
+            dictationViewModel: DictationViewModel,
+            audioRecordingService: AudioRecordingService,
+            textInsertionService: TextInsertionService,
+            retainedObjects: [AnyObject]
+        ) {
             self.router = router
             self.historyService = historyService
             self.profileService = profileService
+            self.dictationViewModel = dictationViewModel
+            self.audioRecordingService = audioRecordingService
+            self.textInsertionService = textInsertionService
             self.retainedObjects = retainedObjects
         }
     }
@@ -78,13 +92,38 @@ final class APIRouterAndHandlersTests: XCTestCase {
 
         init(onPause: @escaping () -> Void) {
             self.onPause = onPause
-            super.init()
+            super.init(startListening: false)
         }
 
         override func pauseIfPlaying() {
             onPause()
         }
     }
+
+    #if !APPSTORE
+    private final class FakeMediaPlaybackController: MediaPlaybackControlling {
+        var returnedSnapshot: (isPlaying: Bool, bundleIdentifier: String?) = (false, nil)
+        var onGetPlaybackSnapshot: ((@escaping (_ isPlaying: Bool, _ bundleIdentifier: String?) -> Void) -> Void)?
+        private(set) var pauseCalls = 0
+        private(set) var playCalls = 0
+
+        func getPlaybackSnapshot(_ onReceive: @escaping (_ isPlaying: Bool, _ bundleIdentifier: String?) -> Void) {
+            if let onGetPlaybackSnapshot {
+                onGetPlaybackSnapshot(onReceive)
+                return
+            }
+            onReceive(returnedSnapshot.isPlaying, returnedSnapshot.bundleIdentifier)
+        }
+
+        func play() {
+            playCalls += 1
+        }
+
+        func pause() {
+            pauseCalls += 1
+        }
+    }
+    #endif
 
     func testRouterHandlesOptionsAndNotFound() async {
         let router = APIRouter()
@@ -146,6 +185,107 @@ final class APIRouterAndHandlersTests: XCTestCase {
         XCTAssertEqual((history["entries"] as? [[String: Any]])?.count, 1)
         XCTAssertEqual((rules["rules"] as? [[String: Any]])?.first?["name"] as? String, "Docs")
         XCTAssertEqual((legacyProfiles["profiles"] as? [[String: Any]])?.first?["name"] as? String, "Docs")
+    }
+
+    func testDictationStartReturnsConflictWhenRecordingCannotStart() async throws {
+        let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
+        var context: APIContext?
+        defer {
+            context = nil
+            TestSupport.remove(appSupportDirectory)
+        }
+
+        context = await MainActor.run { Self.makeAPIContext(appSupportDirectory: appSupportDirectory) }
+        let router = try XCTUnwrap(context?.router)
+
+        let response = await router.route(
+            HTTPRequest(method: "POST", path: "/v1/dictation/start", queryParams: [:], headers: [:], body: Data())
+        )
+        let json = try Self.jsonObject(response)
+
+        XCTAssertEqual(response.status, 409)
+        XCTAssertEqual((json["error"] as? [String: Any])?["message"] as? String, TranscriptionEngineError.modelNotLoaded.localizedDescription)
+    }
+
+    func testDictationEndpointsReturnSessionIDAndCompletedTranscription() async throws {
+        let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
+        var context: APIContext?
+        defer {
+            context = nil
+            TestSupport.remove(appSupportDirectory)
+        }
+
+        context = await MainActor.run {
+            Self.makeAPIContext(appSupportDirectory: appSupportDirectory, withMockTranscriptionPlugin: true)
+        }
+        let apiContext = try XCTUnwrap(context)
+        let router = apiContext.router
+
+        await MainActor.run {
+            apiContext.audioRecordingService.hasMicrophonePermissionOverride = true
+            apiContext.audioRecordingService.inputAvailabilityOverride = { _ in true }
+            apiContext.audioRecordingService.startRecordingOverride = {}
+            apiContext.audioRecordingService.stopRecordingOverride = { _ in
+                Array(repeating: 0.25, count: Int(AudioRecordingService.targetSampleRate))
+            }
+            apiContext.textInsertionService.accessibilityGrantedOverride = true
+            apiContext.textInsertionService.captureActiveAppOverride = {
+                ("Notes", "com.apple.Notes", nil)
+            }
+            apiContext.textInsertionService.selectedTextOverride = { nil }
+            apiContext.textInsertionService.pasteSimulatorOverride = {}
+        }
+
+        let start = try Self.jsonObject(
+            await router.route(HTTPRequest(method: "POST", path: "/v1/dictation/start", queryParams: [:], headers: [:], body: Data()))
+        )
+        let startID = try XCTUnwrap(start["id"] as? String)
+        XCTAssertEqual(start["status"] as? String, "recording")
+        XCTAssertNotNil(UUID(uuidString: startID))
+
+        await MainActor.run {
+            apiContext.dictationViewModel.partialText = "transcribed"
+        }
+
+        let stop = try Self.jsonObject(
+            await router.route(HTTPRequest(method: "POST", path: "/v1/dictation/stop", queryParams: [:], headers: [:], body: Data()))
+        )
+        XCTAssertEqual(stop["id"] as? String, startID)
+        XCTAssertEqual(stop["status"] as? String, "stopped")
+
+        var completedResponse: [String: Any]?
+        for _ in 0..<40 {
+            let response = try Self.jsonObject(
+                await router.route(
+                    HTTPRequest(
+                        method: "GET",
+                        path: "/v1/dictation/transcription",
+                        queryParams: ["id": startID],
+                        headers: [:],
+                        body: Data()
+                    )
+                )
+            )
+            if response["status"] as? String == "completed" {
+                completedResponse = response
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+
+        let completedPayload = try XCTUnwrap(completedResponse)
+        XCTAssertEqual(completedPayload["id"] as? String, startID)
+        XCTAssertEqual(completedPayload["status"] as? String, "completed")
+
+        let transcription = try XCTUnwrap(completedPayload["transcription"] as? [String: Any])
+        XCTAssertEqual(transcription["text"] as? String, "transcribed")
+        XCTAssertEqual(transcription["raw_text"] as? String, "transcribed")
+        XCTAssertEqual(transcription["app_name"] as? String, "Notes")
+        XCTAssertEqual(transcription["app_bundle_id"] as? String, "com.apple.Notes")
+        XCTAssertEqual(transcription["words_count"] as? Int, 1)
+
+        let recordID = await MainActor.run { apiContext.historyService.records.first?.id.uuidString }
+        XCTAssertEqual(recordID, startID)
     }
 
     @MainActor
@@ -260,7 +400,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
             return "Already selected"
         }
 
-        context.dictationViewModel.apiStartRecording()
+        _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(context.dictationViewModel.state, DictationViewModel.State.recording)
         XCTAssertEqual(events, ["capture_app", "start_audio"])
@@ -294,7 +434,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
             return nil
         }
 
-        context.dictationViewModel.apiStartRecording()
+        _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(context.dictationViewModel.state, DictationViewModel.State.recording)
         XCTAssertEqual(context.dictationViewModel.activeRuleName, "Docs")
@@ -332,10 +472,55 @@ final class APIRouterAndHandlersTests: XCTestCase {
             events.append("start_audio")
         }
 
-        context.dictationViewModel.apiStartRecording()
+        _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(Array(events.prefix(3)), ["capture_app", "start_audio", "pause_media"])
     }
+
+    #if !APPSTORE
+    @MainActor
+    func testMediaPlaybackServicePausesAndResumesFromOneShotTrackInfo() {
+        let controller = FakeMediaPlaybackController()
+        controller.returnedSnapshot = (true, "com.apple.Music")
+        let service = MediaPlaybackService(startListening: false) { controller }
+
+        service.pauseIfPlaying()
+        service.resumeIfWePaused()
+
+        XCTAssertEqual(controller.pauseCalls, 1)
+        XCTAssertEqual(controller.playCalls, 1)
+    }
+
+    @MainActor
+    func testMediaPlaybackServiceSkipsPauseWhenPlaybackIsAlreadyStopped() {
+        let controller = FakeMediaPlaybackController()
+        controller.returnedSnapshot = (false, nil)
+        let service = MediaPlaybackService(startListening: false) { controller }
+
+        service.pauseIfPlaying()
+        service.resumeIfWePaused()
+
+        XCTAssertEqual(controller.pauseCalls, 0)
+        XCTAssertEqual(controller.playCalls, 0)
+    }
+
+    @MainActor
+    func testMediaPlaybackServiceIgnoresStalePauseProbeAfterResume() {
+        let controller = FakeMediaPlaybackController()
+        var deferredCallback: ((_ isPlaying: Bool, _ bundleIdentifier: String?) -> Void)?
+        controller.onGetPlaybackSnapshot = { callback in
+            deferredCallback = callback
+        }
+        let service = MediaPlaybackService(startListening: false) { controller }
+
+        service.pauseIfPlaying()
+        service.resumeIfWePaused()
+        deferredCallback?(true, "com.apple.Music")
+
+        XCTAssertEqual(controller.pauseCalls, 0)
+        XCTAssertEqual(controller.playCalls, 0)
+    }
+    #endif
 
     @MainActor
     func testApiStartRecording_showsSelectModelErrorWhenNoProviderIsSelected() async throws {
@@ -400,7 +585,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
         dictationViewModel.soundFeedbackEnabled = false
         dictationViewModel.spokenFeedbackEnabled = false
 
-        dictationViewModel.apiStartRecording()
+        _ = dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(dictationViewModel.state, .inserting)
         XCTAssertEqual(
@@ -423,7 +608,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
         context.audioRecordingService.hasMicrophonePermissionOverride = true
         context.audioRecordingService.inputAvailabilityOverride = { _ in false }
 
-        context.dictationViewModel.apiStartRecording()
+        _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(context.dictationViewModel.state, .inserting)
         XCTAssertEqual(context.dictationViewModel.actionFeedbackMessage, "No mic detected.")
@@ -442,7 +627,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
         let context = try XCTUnwrap(dictationContext)
         context.audioRecordingService.hasMicrophonePermissionOverride = false
 
-        context.dictationViewModel.apiStartRecording()
+        _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(context.dictationViewModel.state, .inserting)
         XCTAssertEqual(
@@ -505,10 +690,30 @@ final class APIRouterAndHandlersTests: XCTestCase {
     }
 
     @MainActor
-    private static func makeAPIContext(appSupportDirectory: URL) -> APIContext {
+    private static func makeAPIContext(appSupportDirectory: URL, withMockTranscriptionPlugin: Bool = false) -> APIContext {
+        EventBus.shared = EventBus()
         PluginManager.shared = PluginManager(appSupportDirectory: appSupportDirectory)
 
         let modelManager = ModelManagerService()
+        if withMockTranscriptionPlugin {
+            let mockPlugin = MockTranscriptionPlugin()
+            let manifest = PluginManifest(
+                id: "com.typewhisper.mock.transcription",
+                name: "Mock Transcription",
+                version: "1.0.0",
+                principalClass: "APIRouterMockTranscriptionPlugin"
+            )
+            PluginManager.shared.loadedPlugins = [
+                LoadedPlugin(
+                    manifest: manifest,
+                    instance: mockPlugin,
+                    bundle: Bundle.main,
+                    sourceURL: appSupportDirectory,
+                    isEnabled: true
+                )
+            ]
+            modelManager.selectProvider(mockPlugin.providerId)
+        }
         let audioFileService = AudioFileService()
         let audioRecordingService = AudioRecordingService()
         let hotkeyService = HotkeyService()
@@ -566,6 +771,9 @@ final class APIRouterAndHandlersTests: XCTestCase {
             router: router,
             historyService: historyService,
             profileService: profileService,
+            dictationViewModel: dictationViewModel,
+            audioRecordingService: audioRecordingService,
+            textInsertionService: textInsertionService,
             retainedObjects: [
                 PluginManager.shared,
                 modelManager,
@@ -661,7 +869,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
         let accessibilityAnnouncementService = AccessibilityAnnouncementService()
         let errorLogService = ErrorLogService(appSupportDirectory: appSupportDirectory)
         let settingsViewModel = SettingsViewModel(modelManager: modelManager)
-        let mediaPlaybackService = mediaPlaybackService ?? MediaPlaybackService()
+        let mediaPlaybackService = mediaPlaybackService ?? MediaPlaybackService(startListening: false)
 
         let dictationViewModel = DictationViewModel(
             audioRecordingService: audioRecordingService,

@@ -479,7 +479,15 @@ private struct WhisperKitSettingsView: View {
             let pluginState = plugin.modelState
             if pluginState != .notLoaded {
                 modelState = pluginState
-                activeModelId = plugin._selectedModelId ?? activeModelId
+
+                switch pluginState {
+                case .ready:
+                    activeModelId = plugin._selectedModelId ?? activeModelId
+                case .downloading, .loading:
+                    break
+                case .notLoaded, .error:
+                    activeModelId = plugin._selectedModelId ?? activeModelId
+                }
             }
             if case .ready = pluginState { isPolling = false }
             else if case .error = pluginState { isPolling = false }
