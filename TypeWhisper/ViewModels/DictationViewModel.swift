@@ -430,7 +430,7 @@ final class DictationViewModel: ObservableObject {
         }
 
         hotkeyService.onCancelPressed = { [weak self] in
-            self?.cancelCurrentOperation()
+            self?.cancelCurrentOperation() ?? false
         }
 
         // Sync profile hotkeys whenever profiles change
@@ -526,12 +526,12 @@ final class DictationViewModel: ObservableObject {
         )
     }
 
-    private func cancelCurrentOperation() {
+    private func cancelCurrentOperation() -> Bool {
         let cancelledMessage = String(localized: "Cancelled")
 
         switch state {
         case .recording:
-            guard !isStopInFlight else { return }
+            guard !isStopInFlight else { return false }
             audioDuckingService.restoreAudio()
             streamingHandler.stop()
             stopRecordingTimer()
@@ -541,13 +541,15 @@ final class DictationViewModel: ObservableObject {
             cancelActiveDictationSessionIfNeeded(message: cancelledMessage)
             hotkeyService.cancelDictation()
             showNotchFeedback(message: cancelledMessage, icon: "xmark.circle", duration: 1.5)
+            return true
         case .processing:
             cancelActiveDictationSessionIfNeeded(message: cancelledMessage)
             transcriptionTask?.cancel()
             transcriptionTask = nil
             showNotchFeedback(message: cancelledMessage, icon: "xmark.circle", duration: 1.5)
+            return true
         default:
-            break
+            return false
         }
     }
 

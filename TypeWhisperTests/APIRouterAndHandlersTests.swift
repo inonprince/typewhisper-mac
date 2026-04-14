@@ -996,6 +996,38 @@ final class HotkeyServiceCompatibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testEscapePassesThroughWhenCancelDoesNotHandleIt() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        var cancelCount = 0
+        service.onCancelPressed = {
+            cancelCount += 1
+            return false
+        }
+
+        let escapeKeyDown = try makeKeyboardEvent(keyCode: 0x35, keyDown: true, flags: [])
+        XCTAssertFalse(service.processEventForTesting(escapeKeyDown, source: .eventTap))
+        XCTAssertEqual(cancelCount, 1)
+    }
+
+    @MainActor
+    func testEscapeSuppressesEventWhenCancelHandlesIt() throws {
+        let service = HotkeyService()
+        service.suspendMonitoring()
+
+        var cancelCount = 0
+        service.onCancelPressed = {
+            cancelCount += 1
+            return true
+        }
+
+        let escapeKeyDown = try makeKeyboardEvent(keyCode: 0x35, keyDown: true, flags: [])
+        XCTAssertTrue(service.processEventForTesting(escapeKeyDown, source: .eventTap))
+        XCTAssertEqual(cancelCount, 1)
+    }
+
+    @MainActor
     func testMonitorFallbackStopsPushToTalkOnKeyUp() throws {
         let service = HotkeyService()
         service.suspendMonitoring()

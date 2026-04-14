@@ -112,7 +112,7 @@ final class HotkeyService: ObservableObject {
     var onDictationStop: (() -> Void)?
     var onPromptPaletteToggle: (() -> Void)?
     var onProfileDictationStart: ((UUID) -> Void)?
-    var onCancelPressed: (() -> Void)?
+    var onCancelPressed: (() -> Bool)?
 
     private var keyDownTime: Date?
     private var isActive = false
@@ -333,8 +333,8 @@ final class HotkeyService: ObservableObject {
         }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
-            _ = self?.handleEvent(event, source: .monitor)
-            return event
+            let shouldSuppress = self?.handleEvent(event, source: .monitor) ?? false
+            return shouldSuppress ? nil : event
         }
     }
 
@@ -444,8 +444,7 @@ final class HotkeyService: ObservableObject {
     private func handleEvent(_ event: NSEvent, source: HotkeyEventSource) -> Bool {
         // Escape key cancels active recording/transcription
         if event.type == .keyDown && event.keyCode == 0x35 {
-            onCancelPressed?()
-            return false
+            return onCancelPressed?() ?? false
         }
 
         updateCapsLockOriginTracker(for: event)
