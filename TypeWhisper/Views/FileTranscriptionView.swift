@@ -119,7 +119,7 @@ struct FileTranscriptionView: View {
                         if !languages.isEmpty {
                             Divider()
                             ForEach(languages, id: \.self) { code in
-                                Text(Locale.current.localizedString(forLanguageCode: code) ?? code)
+                                Text(Locale.current.localizedString(forIdentifier: code) ?? code)
                                     .tag(code)
                             }
                         }
