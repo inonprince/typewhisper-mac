@@ -6,7 +6,7 @@
 
 Speech-to-text and AI text processing for macOS. Transcribe audio using on-device AI models or cloud APIs (Groq, OpenAI), then process the result with custom LLM prompts. Your voice data stays on your Mac with local models - or use cloud APIs for faster processing.
 
-TypeWhisper `1.x` is the direct-download macOS release line. The supported core remains system-wide dictation, file transcription, prompt processing, rules, history, dictionary, snippets, and bundled integrations. HTTP API, CLI, widgets, watch folders, and the plugin SDK remain supported advanced surfaces.
+TypeWhisper `1.2` is the current stable direct-download release for macOS. It includes system-wide dictation, file transcription, prompt processing, rules, history, dictionary, snippets, and bundled integrations. Advanced surfaces like the HTTP API, CLI, widgets, watch folders, and the plugin SDK remain supported for power users and automation.
 
 See the [release readiness guide](docs/release-readiness.md), [support matrix](docs/support-matrix.md), and [release checklist](docs/release-checklist.md) for the current release definition and ship gates.
 
