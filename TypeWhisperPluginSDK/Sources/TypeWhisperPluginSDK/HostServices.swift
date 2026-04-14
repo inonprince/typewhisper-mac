@@ -332,6 +332,24 @@ public struct PluginOpenAIChatHelper: Sendable {
         self.chatEndpoint = chatEndpoint
     }
 
+    /// Backward-compatible overload kept so plugins built against older
+    /// SDK releases can still resolve this symbol at runtime.
+    public func process(
+        apiKey: String,
+        model: String,
+        systemPrompt: String,
+        userText: String
+    ) async throws -> String {
+        try await process(
+            apiKey: apiKey,
+            model: model,
+            systemPrompt: systemPrompt,
+            userText: userText,
+            maxOutputTokens: 4096,
+            maxOutputTokenParameter: "max_tokens"
+        )
+    }
+
     public func process(
         apiKey: String,
         model: String,

@@ -135,7 +135,8 @@ final class GroqPlugin: NSObject, TranscriptionEnginePlugin, LLMProviderPlugin, 
             apiKey: apiKey,
             model: modelId,
             systemPrompt: systemPrompt,
-            userText: userText
+            userText: userText,
+            maxOutputTokenParameter: "max_tokens"
         )
     }
 

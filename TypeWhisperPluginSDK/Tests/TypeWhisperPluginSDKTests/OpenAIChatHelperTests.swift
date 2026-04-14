@@ -2,6 +2,22 @@ import XCTest
 @testable import TypeWhisperPluginSDK
 
 final class OpenAIChatHelperTests: XCTestCase {
+    func testLegacyProcessOverloadRemainsAvailable() async {
+        let helper = PluginOpenAIChatHelper(baseURL: "not a url")
+
+        do {
+            _ = try await helper.process(
+                apiKey: "test-key",
+                model: "gpt-4o",
+                systemPrompt: "Fix grammar",
+                userText: "hello world"
+            )
+            XCTFail("Expected invalid URL error")
+        } catch {
+            XCTAssertFalse(String(describing: error).isEmpty)
+        }
+    }
+
     func testRequestBodyUsesMaxTokensByDefault() {
         let helper = PluginOpenAIChatHelper(baseURL: "https://example.com")
 
