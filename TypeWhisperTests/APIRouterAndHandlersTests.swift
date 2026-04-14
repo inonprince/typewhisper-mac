@@ -677,7 +677,10 @@ final class APIRouterAndHandlersTests: XCTestCase {
         _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(context.dictationViewModel.state, .inserting)
-        XCTAssertEqual(context.dictationViewModel.actionFeedbackMessage, "No mic detected.")
+        XCTAssertEqual(
+            context.dictationViewModel.actionFeedbackMessage,
+            try TestSupport.localizedCatalogValueForCurrentLocale(for: "No mic detected.")
+        )
     }
 
     @MainActor
