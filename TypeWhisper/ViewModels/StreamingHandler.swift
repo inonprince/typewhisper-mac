@@ -6,6 +6,12 @@ private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "typewhis
 
 @MainActor
 final class StreamingHandler {
+    struct PreviewRequestPolicy: Equatable {
+        let pollInterval: TimeInterval
+        let minimumBufferDuration: TimeInterval
+        let maximumBufferDuration: TimeInterval
+    }
+
     private var streamingTask: Task<Void, Never>?
     private var confirmedStreamingText = ""
 
@@ -39,20 +45,20 @@ final class StreamingHandler {
         guard let providerId,
               let plugin = PluginManager.shared.transcriptionEngine(for: providerId) else { return }
 
-        let pollInterval: Double = plugin.supportsStreaming ? 1.5 : 3.0
+        let policy = Self.previewRequestPolicy(supportsStreaming: plugin.supportsStreaming)
 
         onStreamingStateChange?(true)
         confirmedStreamingText = ""
         let streamPrompt = dictionaryService.getTermsForPrompt()
         streamingTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .seconds(pollInterval))
+            try? await Task.sleep(for: .seconds(policy.pollInterval))
 
             while !Task.isCancelled, stateCheck() == .recording {
-                let buffer = self.audioRecordingService.getRecentBuffer(maxDuration: 3600)
+                let buffer = self.audioRecordingService.getRecentBuffer(maxDuration: policy.maximumBufferDuration)
                 let bufferDuration = Double(buffer.count) / 16000.0
 
-                if bufferDuration > 0.5 {
+                if bufferDuration >= policy.minimumBufferDuration {
                     do {
                         let confirmed = self.confirmedStreamingText
                         let result = try await self.modelManager.transcribe(
@@ -82,7 +88,7 @@ final class StreamingHandler {
                     }
                 }
 
-                try? await Task.sleep(for: .seconds(pollInterval))
+                try? await Task.sleep(for: .seconds(policy.pollInterval))
             }
         }
     }
@@ -137,5 +143,21 @@ final class StreamingHandler {
 
         // Very different result - accept the new text to avoid freezing the preview
         return new
+    }
+
+    nonisolated static func previewRequestPolicy(supportsStreaming: Bool) -> PreviewRequestPolicy {
+        if supportsStreaming {
+            return PreviewRequestPolicy(
+                pollInterval: 1.5,
+                minimumBufferDuration: 0.5,
+                maximumBufferDuration: 15
+            )
+        }
+
+        return PreviewRequestPolicy(
+            pollInterval: 6,
+            minimumBufferDuration: 1.5,
+            maximumBufferDuration: 12
+        )
     }
 }

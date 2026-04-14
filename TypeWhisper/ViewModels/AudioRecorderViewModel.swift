@@ -323,7 +323,7 @@ final class AudioRecorderViewModel: ObservableObject {
         }
 
         isTranscribing = true
-        let pollInterval: Double = plugin.supportsStreaming ? 1.5 : 3.0
+        let policy = StreamingHandler.previewRequestPolicy(supportsStreaming: plugin.supportsStreaming)
         let streamPrompt = dictionaryService.getTermsForPrompt()
         let language = selectedLanguage
         // Fall back to transcribe if engine doesn't support translation
@@ -331,13 +331,13 @@ final class AudioRecorderViewModel: ObservableObject {
 
         streamingTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .seconds(pollInterval))
+            try? await Task.sleep(for: .seconds(policy.pollInterval))
 
             while !Task.isCancelled, self.state == .recording {
-                let buffer = self.recorderService.getRecentBuffer(maxDuration: 3600)
+                let buffer = self.recorderService.getRecentBuffer(maxDuration: policy.maximumBufferDuration)
                 let bufferDuration = Double(buffer.count) / 16000.0
 
-                if bufferDuration > 0.5 {
+                if bufferDuration >= policy.minimumBufferDuration {
                     do {
                         let confirmed = self.confirmedStreamingText
                         let result = try await self.modelManager.transcribe(
@@ -374,7 +374,7 @@ final class AudioRecorderViewModel: ObservableObject {
                     }
                 }
 
-                try? await Task.sleep(for: .seconds(pollInterval))
+                try? await Task.sleep(for: .seconds(policy.pollInterval))
             }
         }
     }
