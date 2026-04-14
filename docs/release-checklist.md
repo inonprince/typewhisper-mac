@@ -1,6 +1,6 @@
 # Release Checklist
 
-## Before the RC Tag
+## Before the Stable Tag
 
 - `xcodebuild test -project TypeWhisper.xcodeproj -scheme TypeWhisper -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`
 - `swift test --package-path TypeWhisperPluginSDK`
@@ -8,9 +8,9 @@
 - `bash scripts/check_first_party_warnings.sh build.log`
 - Review `README.md`, `SECURITY.md`, `docs/support-matrix.md`, `docs/1.1-readiness.md`, `Plugins/README.md`, and `TypeWhisperPluginSDK/README.md`
 - Confirm `MARKETING_VERSION = 1.2.0` across the app, CLI, and widgets
-- Prepare or refresh `docs/release-notes/1.2.0-rc2.md`
-- If you want to edit the notes directly on GitHub, create or update the draft release for `v1.2.0-rc2` before pushing the tag
-- Otherwise the release workflow will publish `docs/release-notes/1.2.0-rc2.md` automatically when no release already exists
+- Prepare or refresh `docs/release-notes/1.2.0.md`
+- If you want to edit the notes directly on GitHub, create or update the draft release for `v1.2.0` before pushing the tag
+- Otherwise the release workflow will publish `docs/release-notes/1.2.0.md` automatically when no release already exists
 
 ## RC Smoke Checks
 
@@ -52,7 +52,7 @@
 
 ## Before `1.2.0`
 
-- Observe `1.2.0-rc2` on real machines for multiple days
+- Observe the latest `1.2.0-rc*` build on real machines for multiple days
 - No open P0/P1 bugs in the core workflow
 - Finalize release notes
 - RC and daily tags must not update Homebrew or trigger stable website messaging
