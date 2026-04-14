@@ -139,7 +139,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
         XCTAssertEqual(notFoundResponse.status, 404)
     }
 
-    func testAPIHandlersExposeStatusHistoryAndProfiles() async throws {
+    func testAPIHandlersExposeStatusHistoryAndRules() async throws {
         let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
         var context: APIContext?
         defer {
@@ -174,13 +174,17 @@ final class APIRouterAndHandlersTests: XCTestCase {
         let history = try Self.jsonObject(
             await router.route(HTTPRequest(method: "GET", path: "/v1/history", queryParams: [:], headers: [:], body: Data()))
         )
-        let profiles = try Self.jsonObject(
+        let rules = try Self.jsonObject(
+            await router.route(HTTPRequest(method: "GET", path: "/v1/rules", queryParams: [:], headers: [:], body: Data()))
+        )
+        let legacyProfiles = try Self.jsonObject(
             await router.route(HTTPRequest(method: "GET", path: "/v1/profiles", queryParams: [:], headers: [:], body: Data()))
         )
 
         XCTAssertEqual(status["status"] as? String, "no_model")
         XCTAssertEqual((history["entries"] as? [[String: Any]])?.count, 1)
-        XCTAssertEqual((profiles["profiles"] as? [[String: Any]])?.first?["name"] as? String, "Docs")
+        XCTAssertEqual((rules["rules"] as? [[String: Any]])?.first?["name"] as? String, "Docs")
+        XCTAssertEqual((legacyProfiles["profiles"] as? [[String: Any]])?.first?["name"] as? String, "Docs")
     }
 
     func testDictationStartReturnsConflictWhenRecordingCannotStart() async throws {
@@ -367,6 +371,72 @@ final class APIRouterAndHandlersTests: XCTestCase {
     }
 
     @MainActor
+    func testPreserveClipboardAvoidsPasteboardWhenVerifiedAccessibilityInsertionSucceeds() async throws {
+        let service = TextInsertionService()
+        let pasteboard = NSPasteboard.withUniqueName()
+        let element = AXUIElementCreateSystemWide()
+        service.accessibilityGrantedOverride = true
+        service.pasteboardProvider = { pasteboard }
+        service.focusedTextElementOverride = { element }
+
+        var stateReadCount = 0
+        service.focusedTextStateOverride = { _ in
+            defer { stateReadCount += 1 }
+            if stateReadCount == 0 {
+                return (value: "", selectedText: nil, selectedRange: NSRange(location: 0, length: 0))
+            }
+            return (value: "Hello", selectedText: nil, selectedRange: NSRange(location: 5, length: 0))
+        }
+
+        var insertedText: String?
+        service.insertTextAtOverride = { _, text in
+            insertedText = text
+            return true
+        }
+
+        var didSimulatePaste = false
+        service.pasteSimulatorOverride = {
+            didSimulatePaste = true
+        }
+
+        pasteboard.clearContents()
+        pasteboard.setString("Existing", forType: .string)
+
+        _ = try await service.insertText("Hello", preserveClipboard: true)
+
+        XCTAssertEqual(insertedText, "Hello")
+        XCTAssertFalse(didSimulatePaste)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing")
+    }
+
+    @MainActor
+    func testPreserveClipboardFallsBackToPasteboardWhenVerifiedAccessibilityInsertionFails() async throws {
+        let service = TextInsertionService()
+        let pasteboard = NSPasteboard.withUniqueName()
+        let element = AXUIElementCreateSystemWide()
+        service.accessibilityGrantedOverride = true
+        service.pasteboardProvider = { pasteboard }
+        service.focusedTextElementOverride = { element }
+        service.focusedTextStateOverride = { _ in
+            (value: "", selectedText: nil, selectedRange: NSRange(location: 0, length: 0))
+        }
+        service.insertTextAtOverride = { _, _ in true }
+
+        var didSimulatePaste = false
+        service.pasteSimulatorOverride = {
+            didSimulatePaste = true
+        }
+
+        pasteboard.clearContents()
+        pasteboard.setString("Existing", forType: .string)
+
+        _ = try await service.insertText("Hello", preserveClipboard: true)
+
+        XCTAssertTrue(didSimulatePaste)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Existing")
+    }
+
+    @MainActor
     func testApiStartRecording_startsAudioBeforeDeferredSelectedTextCapture() async throws {
         let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
         var dictationContext: DictationContext?
@@ -433,7 +503,7 @@ final class APIRouterAndHandlersTests: XCTestCase {
         _ = context.dictationViewModel.apiStartRecording()
 
         XCTAssertEqual(context.dictationViewModel.state, DictationViewModel.State.recording)
-        XCTAssertEqual(context.dictationViewModel.activeProfileName, "Docs")
+        XCTAssertEqual(context.dictationViewModel.activeRuleName, "Docs")
 
         await fulfillment(of: [selectedTextCaptured], timeout: 1.0)
     }
