@@ -57,4 +57,34 @@ final class DictationViewModelIndicatorSettingsTests: XCTestCase {
 
         XCTAssertEqual(DictationViewModel.loadIndicatorStyle(defaults: defaults), .notch)
     }
+
+    func testPreviewTranscriptionDisabledWhenIndicatorPreviewIsOff() {
+        XCTAssertFalse(
+            DictationViewModel.shouldRunPreviewTranscription(
+                indicatorStyle: .notch,
+                indicatorTranscriptPreviewEnabled: false,
+                externalStreamingDisplayCount: 0
+            )
+        )
+    }
+
+    func testPreviewTranscriptionDisabledForMinimalIndicatorWithoutExternalConsumer() {
+        XCTAssertFalse(
+            DictationViewModel.shouldRunPreviewTranscription(
+                indicatorStyle: .minimal,
+                indicatorTranscriptPreviewEnabled: true,
+                externalStreamingDisplayCount: 0
+            )
+        )
+    }
+
+    func testPreviewTranscriptionRemainsEnabledForExternalStreamingDisplay() {
+        XCTAssertTrue(
+            DictationViewModel.shouldRunPreviewTranscription(
+                indicatorStyle: .minimal,
+                indicatorTranscriptPreviewEnabled: false,
+                externalStreamingDisplayCount: 1
+            )
+        )
+    }
 }

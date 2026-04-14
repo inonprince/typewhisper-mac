@@ -15,6 +15,7 @@ final class StreamingHandler {
 
     var onPartialTextUpdate: ((String) -> Void)?
     var onStreamingStateChange: ((Bool) -> Void)?
+    var isActive: Bool { streamingTask != nil }
 
     init(
         modelManager: ModelManagerService,

@@ -302,6 +302,14 @@ final class DictationViewModel: ObservableObject {
         defaults.set(enabled, forKey: UserDefaultsKeys.indicatorTranscriptPreviewEnabled)
     }
 
+    nonisolated static func shouldRunPreviewTranscription(
+        indicatorStyle: IndicatorStyle,
+        indicatorTranscriptPreviewEnabled: Bool,
+        externalStreamingDisplayCount: Int
+    ) -> Bool {
+        externalStreamingDisplayCount > 0 || (indicatorStyle != .minimal && indicatorTranscriptPreviewEnabled)
+    }
+
     nonisolated static func loadIndicatorStyle(defaults: UserDefaults = .standard) -> IndicatorStyle {
         defaults.string(forKey: UserDefaultsKeys.indicatorStyle)
             .flatMap { IndicatorStyle(rawValue: $0) } ?? .notch
@@ -451,6 +459,20 @@ final class DictationViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        $indicatorTranscriptPreviewEnabled
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refreshPreviewTranscriptionIfNeeded()
+            }
+            .store(in: &cancellables)
+
+        $indicatorStyle
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refreshPreviewTranscriptionIfNeeded()
+            }
+            .store(in: &cancellables)
+
         audioDeviceService.$disconnectedDeviceName
             .compactMap { $0 }
             .sink { [weak self] _ in
@@ -473,6 +495,35 @@ final class DictationViewModel: ObservableObject {
                 )
             }
             .store(in: &cancellables)
+    }
+
+    private var shouldRunPreviewTranscription: Bool {
+        Self.shouldRunPreviewTranscription(
+            indicatorStyle: indicatorStyle,
+            indicatorTranscriptPreviewEnabled: indicatorTranscriptPreviewEnabled,
+            externalStreamingDisplayCount: externalStreamingDisplayCount
+        )
+    }
+
+    private func refreshPreviewTranscriptionIfNeeded() {
+        guard state == .recording else { return }
+
+        guard shouldRunPreviewTranscription else {
+            partialText = ""
+            streamingHandler.stop()
+            return
+        }
+
+        guard !streamingHandler.isActive else { return }
+
+        streamingHandler.start(
+            engineOverrideId: effectiveEngineOverrideId,
+            selectedProviderId: modelManager.selectedProviderId,
+            language: effectiveLanguage,
+            task: effectiveTask,
+            cloudModelOverride: effectiveCloudModelOverride,
+            stateCheck: { @MainActor [weak self] in self?.state ?? .idle }
+        )
     }
 
     private func cancelCurrentOperation() {
@@ -576,14 +627,7 @@ final class DictationViewModel: ObservableObject {
             isStopInFlight = false
             recordingStartTime = Date()
             startRecordingTimer()
-            streamingHandler.start(
-                engineOverrideId: effectiveEngineOverrideId,
-                selectedProviderId: modelManager.selectedProviderId,
-                language: effectiveLanguage,
-                task: effectiveTask,
-                cloudModelOverride: effectiveCloudModelOverride,
-                stateCheck: { @MainActor [weak self] in self?.state ?? .idle }
-            )
+            refreshPreviewTranscriptionIfNeeded()
             EventBus.shared.emit(.recordingStarted(RecordingStartedPayload(
                 appName: capturedActiveApp?.name,
                 bundleIdentifier: capturedActiveApp?.bundleId
@@ -1174,6 +1218,7 @@ final class DictationViewModel: ObservableObject {
 
     func updateExternalStreamingDisplay(active: Bool) {
         externalStreamingDisplayCount += active ? 1 : -1
+        refreshPreviewTranscriptionIfNeeded()
     }
 
     private func showError(_ message: String, category: String = "general") {
