@@ -60,7 +60,7 @@ final class SettingsViewModel: ObservableObject {
             }
         }
         return codes.map { code in
-            let name = Locale.current.localizedString(forLanguageCode: code) ?? code
+            let name = Locale.current.localizedString(forIdentifier: code) ?? code
             return (code: code, name: name)
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }

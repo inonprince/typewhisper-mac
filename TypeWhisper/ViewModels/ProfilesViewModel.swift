@@ -24,7 +24,7 @@ func localizedAppLanguageName(for code: String) -> String {
     }
 
     let locale = Locale(identifier: preferredAppLanguageCode())
-    return locale.localizedString(forLanguageCode: code) ?? code
+    return locale.localizedString(forIdentifier: code) ?? code
 }
 
 func localizedAppOrSeparator() -> String {

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 enum SettingsTab: Hashable {
     case home, general, recording, hotkeys, recorder
@@ -274,8 +275,10 @@ private struct SettingsSidebarShell<DetailContent: View>: View {
     let destinations: [SettingsDestination]
     let detail: (SettingsTab) -> DetailContent
 
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(destinations, selection: $selectedTab) { destination in
                 SettingsSidebarRow(destination: destination)
                     .tag(destination.tab)
@@ -285,6 +288,28 @@ private struct SettingsSidebarShell<DetailContent: View>: View {
         } detail: {
             detail(selectedTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        // macOS 14 glitches when the default NavigationSplitView sidebar reveal animates.
+        // Use a custom zero-duration toggle instead.
+        .toolbar(removing: .sidebarToggle)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button(action: toggleSidebar) {
+                    Image(systemName: "sidebar.leading")
+                }
+                .help(localizedAppText("Toggle Sidebar", de: "Seitenleiste ein-/ausblenden"))
+                .accessibilityLabel(localizedAppText("Toggle Sidebar", de: "Seitenleiste ein-/ausblenden"))
+            }
+        }
+    }
+
+    private func toggleSidebar() {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            withAnimation(nil) {
+                columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+            }
         }
     }
 }
@@ -379,8 +404,14 @@ struct RecordingSettingsView: View {
                     Text(String(localized: "System Default")).tag(nil as String?)
                     Divider()
                     ForEach(audioDevice.inputDevices) { device in
-                        Text(device.name).tag(device.uid as String?)
+                        Text(audioDevice.displayName(for: device)).tag(device.uid as String?)
                     }
+                }
+
+                if let message = audioDevice.selectedDeviceStatusMessage {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
                 }
 
                 if audioDevice.isPreviewActive {
@@ -419,6 +450,12 @@ struct RecordingSettingsView: View {
                     }
                 }
                 .disabled(!audioDevice.isPreviewActive && dictation.needsMicPermission)
+
+                if let error = audioDevice.previewError {
+                    Label(error.localizedDescription, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
 
                 if let name = audioDevice.disconnectedDeviceName {
                     Label(

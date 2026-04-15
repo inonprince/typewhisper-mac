@@ -6,9 +6,9 @@
 
 Speech-to-text and AI text processing for macOS. Transcribe audio using on-device AI models or cloud APIs (Groq, OpenAI), then process the result with custom LLM prompts. Your voice data stays on your Mac with local models - or use cloud APIs for faster processing.
 
-TypeWhisper `1.x` is the direct-download macOS release line. The supported core remains system-wide dictation, file transcription, prompt processing, rules, history, dictionary, snippets, and bundled integrations. HTTP API, CLI, widgets, watch folders, and the plugin SDK remain supported advanced surfaces.
+TypeWhisper `1.2` is the current stable direct-download release for macOS. It includes system-wide dictation, file transcription, prompt processing, rules, history, dictionary, snippets, and bundled integrations. Advanced surfaces like the HTTP API, CLI, widgets, watch folders, and the plugin SDK remain supported for power users and automation.
 
-See [docs/1.1-readiness.md](docs/1.1-readiness.md), [docs/support-matrix.md](docs/support-matrix.md), and [docs/release-checklist.md](docs/release-checklist.md) for the current release definition and ship gates.
+See the [release readiness guide](docs/release-readiness.md), [support matrix](docs/support-matrix.md), and [release checklist](docs/release-checklist.md) for the current release definition and ship gates.
 
 ## Local Fork Changes
 
@@ -83,7 +83,7 @@ This section tracks changes maintained in this fork on top of upstream TypeWhisp
 ### AI Processing
 
 - **Custom prompts** - Process transcriptions (or any text) with LLM prompts. 8 presets included (Translate, Formal, Summarize, Fix Grammar, Email, List, Shorter, Explain). Standalone Prompt Palette via global hotkey - a floating panel for AI text processing independent of dictation
-- **LLM providers** - Apple Intelligence (macOS 26+), Groq, OpenAI, Gemini, and OpenAI Compatible with per-prompt provider and model override
+- **LLM providers** - Apple Intelligence (macOS 26+), Groq, OpenAI / ChatGPT, Gemini, and OpenAI Compatible with per-prompt provider and model override
 - **Translation** - Translate transcriptions on-device using Apple Translate
 
 ### Personalization
@@ -96,7 +96,7 @@ This section tracks changes maintained in this fork on top of upstream TypeWhisp
 
 ### Integration & Extensibility
 
-- **Plugin system** - Extend TypeWhisper with custom LLM providers, transcription engines, post-processors, and action plugins. Granite, Groq, OpenAI, OpenAI Compatible, Gemini, Linear, Qwen3, Voxtral, and Webhook ship as bundled plugins, alongside the local engine plugins. Linear plugin enables voice-to-issue creation. See [Plugins/README.md](Plugins/README.md)
+- **Plugin system** - Extend TypeWhisper with custom LLM providers, transcription engines, post-processors, and action plugins. Granite, Groq, OpenAI / ChatGPT, OpenAI Compatible, Gemini, Linear, Qwen3, Voxtral, and Webhook ship as bundled plugins, alongside the local engine plugins. Linear plugin enables voice-to-issue creation. See [Plugins/README.md](Plugins/README.md)
 - **MLX download controls** - Bundled Qwen3, Granite, and Voxtral plugins support an optional HuggingFace token for higher rate limits and clearer download errors
 - **HTTP API** - Local REST API for integration with external tools and scripts
 - **CLI tool** - Shell-friendly transcription via the command line
@@ -132,6 +132,53 @@ Installed builds can switch channels in `Settings -> About` via the `Update Chan
 2. Open Settings and grant Microphone plus Accessibility access.
 3. Pick an engine and, if needed, download a local model.
 4. Trigger the global hotkey and complete your first dictation.
+
+## Manual Uninstall (macOS)
+
+These steps are for official TypeWhisper release builds on macOS. They remove the app itself, its local state, widget data, and stored secrets so you can reinstall from a clean slate.
+
+If you installed via Homebrew, you can optionally start with:
+
+```bash
+brew uninstall --cask typewhisper
+```
+
+That removes the app bundle, but it does not reliably remove all files in `~/Library` or TypeWhisper entries in Keychain.
+
+If `~/Library` is hidden in Finder, use `Go -> Go to Folder...` and paste the paths below.
+
+1. Quit TypeWhisper if it is running.
+2. Delete the app bundle:
+   ```bash
+   rm -rf /Applications/TypeWhisper.app
+   ```
+3. Delete app data and plugins:
+   ```bash
+   rm -rf ~/Library/Application\ Support/TypeWhisper
+   ```
+4. Delete preferences:
+   ```bash
+   rm -f ~/Library/Preferences/com.typewhisper.mac.plist
+   ```
+5. Delete widget and app group data used by official releases:
+   ```bash
+   rm -rf ~/Library/Group\ Containers/2D8ALY3LCL.com.typewhisper.mac
+   ```
+6. Remove TypeWhisper secrets from Keychain:
+   - In Keychain Access, search for `com.typewhisper.mac.apikey` and delete matching items.
+   - This includes API and plugin secrets stored under the `com.typewhisper.mac.apikey.*` service prefix.
+   - Also remove the license items stored under service `com.typewhisper.mac.apikey.license`, especially the `polar-license` and `polar-supporter` accounts.
+7. If you installed the CLI tool from Settings > Advanced, remove it too:
+   ```bash
+   rm -f /usr/local/bin/typewhisper
+   ```
+8. Optional: if you want to remove exported user files as well, delete:
+   ```bash
+   rm -rf ~/Documents/TypeWhisper\ Recordings
+   ```
+9. Restart your Mac, then install the latest build again.
+
+If a fresh install still crashes immediately after these steps, please open an issue and include your macOS version, how you installed TypeWhisper, and whether the crash happens on first launch or after granting permissions.
 
 ## System Requirements
 
@@ -310,7 +357,7 @@ cat audio.wav | typewhisper transcribe -
 typewhisper transcribe meeting.m4a --json | jq -r '.text'
 ```
 
-The CLI requires the API server to be running (Settings > Advanced) and follows the documented `1.x` command and flag surface.
+The CLI requires the API server to be running (Settings > Advanced) and follows the documented command and flag surface for the current stable release.
 
 ## Rules
 

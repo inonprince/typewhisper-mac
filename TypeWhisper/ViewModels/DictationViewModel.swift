@@ -617,6 +617,7 @@ final class DictationViewModel: ObservableObject {
             // audio hardware (aggregate device) which disrupts NSSound playback.
             soundService.play(.recordingStarted, enabled: soundFeedbackEnabled)
             audioRecordingService.selectedDeviceID = audioDeviceService.selectedDeviceID
+            audioRecordingService.hasExplicitDeviceSelection = audioDeviceService.selectedDeviceUID != nil
             try audioRecordingService.startRecording()
             if mediaPauseEnabled { mediaPlaybackService.pauseIfPlaying() }
             if audioDuckingEnabled {
@@ -655,6 +656,10 @@ final class DictationViewModel: ObservableObject {
             if let recordingError = error as? AudioRecordingService.AudioRecordingError,
                case .noMicrophoneDetected = recordingError {
                 errorMessage = String(localized: "No mic detected.")
+            } else if let recordingError = error as? AudioRecordingService.AudioRecordingError,
+                      case .selectedInputDeviceIncompatible(let issue) = recordingError {
+                audioDeviceService.markSelectedDeviceCompatibility(.incompatible(issue))
+                errorMessage = recordingError.localizedDescription
             } else {
                 errorMessage = error.localizedDescription
             }
