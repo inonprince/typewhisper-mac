@@ -10,6 +10,18 @@ TypeWhisper `1.x` is the direct-download macOS release line. The supported core 
 
 See [docs/1.1-readiness.md](docs/1.1-readiness.md), [docs/support-matrix.md](docs/support-matrix.md), and [docs/release-checklist.md](docs/release-checklist.md) for the current release definition and ship gates.
 
+## Local Fork Changes
+
+This section tracks changes maintained in this fork on top of upstream TypeWhisper.
+
+- **Preview requests respect the preview setting** - when the transcript preview is hidden, TypeWhisper stops preview transcription calls while keeping the final transcription call after recording.
+- **Lower-cost preview polling** - non-streaming providers such as Groq use a slower preview cadence and a shorter rolling audio window to reduce repeated API usage.
+- **Groq plugin SDK compatibility** - the plugin SDK keeps a legacy OpenAI chat helper overload so older Groq bundles can still load against the current host SDK.
+- **Escape cancellation behavior** - pressing Escape during active dictation stops recording and suppresses the Escape key event from leaking into the focused app.
+- **Local optimized build script** - `scripts/build-run-local.sh` builds an Apple Silicon Release app with normal local Xcode signing for responsive local testing.
+- **Soniox preview streaming** - the Soniox plugin keeps a persistent realtime WebSocket for preview, filters Soniox control tokens, sends only newly captured audio between preview calls, and keeps Groq or other providers available for final transcription.
+- **Codex-aware fork notes** - repository agent instructions ask Codex to maintain this list when durable fork-specific behavior changes.
+
 <p align="center">
   <video src="https://github.com/user-attachments/assets/22fe922d-4a4c-47d1-805e-684a148ebd03" autoplay loop muted playsinline width="270"></video>
 </p>
