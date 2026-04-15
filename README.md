@@ -121,6 +121,53 @@ Installed builds can switch channels in `Settings -> About` via the `Update Chan
 3. Pick an engine and, if needed, download a local model.
 4. Trigger the global hotkey and complete your first dictation.
 
+## Manual Uninstall (macOS)
+
+These steps are for official TypeWhisper release builds on macOS. They remove the app itself, its local state, widget data, and stored secrets so you can reinstall from a clean slate.
+
+If you installed via Homebrew, you can optionally start with:
+
+```bash
+brew uninstall --cask typewhisper
+```
+
+That removes the app bundle, but it does not reliably remove all files in `~/Library` or TypeWhisper entries in Keychain.
+
+If `~/Library` is hidden in Finder, use `Go -> Go to Folder...` and paste the paths below.
+
+1. Quit TypeWhisper if it is running.
+2. Delete the app bundle:
+   ```bash
+   rm -rf /Applications/TypeWhisper.app
+   ```
+3. Delete app data and plugins:
+   ```bash
+   rm -rf ~/Library/Application\ Support/TypeWhisper
+   ```
+4. Delete preferences:
+   ```bash
+   rm -f ~/Library/Preferences/com.typewhisper.mac.plist
+   ```
+5. Delete widget and app group data used by official releases:
+   ```bash
+   rm -rf ~/Library/Group\ Containers/2D8ALY3LCL.com.typewhisper.mac
+   ```
+6. Remove TypeWhisper secrets from Keychain:
+   - In Keychain Access, search for `com.typewhisper.mac.apikey` and delete matching items.
+   - This includes API and plugin secrets stored under the `com.typewhisper.mac.apikey.*` service prefix.
+   - Also remove the license items stored under service `com.typewhisper.mac.apikey.license`, especially the `polar-license` and `polar-supporter` accounts.
+7. If you installed the CLI tool from Settings > Advanced, remove it too:
+   ```bash
+   rm -f /usr/local/bin/typewhisper
+   ```
+8. Optional: if you want to remove exported user files as well, delete:
+   ```bash
+   rm -rf ~/Documents/TypeWhisper\ Recordings
+   ```
+9. Restart your Mac, then install the latest build again.
+
+If a fresh install still crashes immediately after these steps, please open an issue and include your macOS version, how you installed TypeWhisper, and whether the crash happens on first launch or after granting permissions.
+
 ## System Requirements
 
 - macOS 14.0 (Sonoma) or later
